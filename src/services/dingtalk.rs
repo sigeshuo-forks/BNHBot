@@ -121,25 +121,27 @@ impl DingTalkBot {
     }
 
     /// 发送启动通知
-    pub async fn send_startup_notification(&self, at_all: bool) -> Result<()> {
+    pub async fn send_startup_notification(&self, at_all: bool, web_base_url: &str) -> Result<()> {
         let startup_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         
         // 获取系统信息
-        let system_info = self.get_system_info();
+        // let system_info = self.get_system_info();
         
         let content = format!(
             "🤖 BNHBot 钉钉机器人已启动\n\n\
             🕐 启动时间: {}\n\
-            💻 系统信息: {}\n\
             ✅ 系统状态: 正常运行\n\n\
+            📊 加入交易大赛，证明自己的能力！记录自己成长的点滴～\n\
+            • 期待明日翻仓的你\n\n\
             🎯 主要功能:\n\
-            • 📊 每日8点自动播报交易所余额并进行排名播报\n\
+            • 📊 每日8点自动播报各位参赛选手账户排名\n\
             • 🏢 支持币安、欧易、WEEX三大交易所\n\n\
-            💡 使用方法:\n\
-            • 输入 \"@机器人 报名\" 进行报名\n\
-            • 系统会自动发送报名链接\n\n\
+            💡 报名方式:\n\
+            • 点击下方报名链接进行报名\n\
+            • 报名链接: {}\n\n\
             📞 如有问题，请联系管理员 @西柚",
-            startup_time, system_info
+            startup_time,
+            format!("{}/register", web_base_url)
         );
 
         let message = DingTalkMessage {

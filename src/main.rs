@@ -23,6 +23,41 @@ use services::{DatabaseService, ExchangeService, DingTalkBot, Scheduler, Registr
 use utils::dingtalk_check::DingTalkChecker;
 use utils::webhook_test::WebhookTester;
 
+// 配置结构体
+#[derive(Clone)]
+struct AppConfig {
+    database_url: String,
+    dingtalk_webhook: String,
+    dingtalk_secret: Option<String>,
+    dingtalk_at_all: bool,
+    web_host: String,
+    web_port: u16,
+    web_base_url: String,
+}
+
+impl AppConfig {
+    fn from_env() -> Result<Self> {
+        let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/bnhbot.db".to_string());
+        let dingtalk_webhook = env::var("DINGTALK_WEBHOOK").expect("DINGTALK_WEBHOOK 环境变量未设置");
+        let dingtalk_secret = env::var("DINGTALK_SECRET").ok();
+        let dingtalk_at_all = env::var("DINGTALK_AT_ALL").unwrap_or_else(|_| "false".to_string()).parse().unwrap_or(false);
+        
+        let web_host = env::var("WEB_SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+        let web_port = env::var("WEB_SERVER_PORT").unwrap_or_else(|_| "3000".to_string()).parse().unwrap_or(3000);
+        let web_base_url = env::var("WEB_SERVER_BASE_URL").unwrap_or_else(|_| format!("http://{}:{}", web_host, web_port));
+        
+        Ok(Self {
+            database_url,
+            dingtalk_webhook,
+            dingtalk_secret,
+            dingtalk_at_all,
+            web_host,
+            web_port,
+            web_base_url,
+        })
+    }
+}
+
 // 创建默认环境变量文件
 fn create_default_env_if_needed() -> Result<()> {
     if !std::path::Path::new(".env").exists() {
@@ -37,6 +72,11 @@ DINGTALK_AT_ALL=false
 
 # 数据库配置
 DATABASE_URL=sqlite:data/bnhbot.db
+
+# Web服务器配置
+WEB_SERVER_HOST=127.0.0.1
+WEB_SERVER_PORT=3000
+WEB_SERVER_BASE_URL=http://localhost:3000
 
 # 日志级别
 RUST_LOG=info
@@ -89,11 +129,9 @@ async fn main() -> Result<()> {
     check_environment_variables()?;
     
     // 获取配置
-    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/bnhbot.db".to_string());
-    let dingtalk_webhook = env::var("DINGTALK_WEBHOOK").expect("DINGTALK_WEBHOOK 环境变量未设置");
-    let dingtalk_secret = env::var("DINGTALK_SECRET").ok();
-    let dingtalk_webhook_clone = dingtalk_webhook.clone();
-    let dingtalk_secret_clone = dingtalk_secret.clone();
+    let config = AppConfig::from_env()?;
+    let dingtalk_webhook_clone = config.dingtalk_webhook.clone();
+    let dingtalk_secret_clone = config.dingtalk_secret.clone();
     
     // 确保数据目录存在
     info!("📁 创建数据目录...");
@@ -102,15 +140,15 @@ async fn main() -> Result<()> {
     })?;
     
     // 检查数据库文件路径
-    let db_path = if database_url.starts_with("sqlite:") {
-        let path = database_url.trim_start_matches("sqlite:");
+    let db_path = if config.database_url.starts_with("sqlite:") {
+        let path = config.database_url.trim_start_matches("sqlite:");
         if !path.starts_with('/') && !path.starts_with("data/") {
             format!("data/{}", path)
         } else {
             path.to_string()
         }
     } else {
-        database_url.clone()
+        config.database_url.clone()
     };
     
     info!("🗄️  数据库文件路径: {}", db_path);
@@ -137,14 +175,14 @@ async fn main() -> Result<()> {
     
     // 初始化服务
     info!("🔧 初始化数据库服务...");
-    let database = DatabaseService::new(&database_url).await?;
+    let database = DatabaseService::new(&config.database_url).await?;
     info!("✅ 数据库服务初始化成功");
     let exchange_service = ExchangeService::new();
-    let dingtalk_bot = DingTalkBot::new(dingtalk_webhook, dingtalk_secret);
+    let dingtalk_bot = DingTalkBot::new(config.dingtalk_webhook.clone(), config.dingtalk_secret.clone());
     
     // 检查钉钉机器人配置
     info!("🔧 检查钉钉机器人配置...");
-    let webhook_handler = DingTalkWebhookHandler::new(database.clone(), dingtalk_bot.clone());
+            let webhook_handler = DingTalkWebhookHandler::new(database.clone(), dingtalk_bot.clone(), config.web_base_url.clone());
     if let Err(e) = webhook_handler.check_config().await {
         warn!("⚠️  钉钉机器人配置检查失败: {}", e);
         
@@ -166,7 +204,7 @@ async fn main() -> Result<()> {
         // 发送启动通知到群
         info!("📢 发送启动通知到钉钉群...");
         let at_all = env::var("DINGTALK_AT_ALL").unwrap_or_else(|_| "false".to_string()).parse().unwrap_or(false);
-        if let Err(e) = dingtalk_bot.send_startup_notification(at_all).await {
+        if let Err(e) = dingtalk_bot.send_startup_notification(at_all, &config.web_base_url).await {
             warn!("⚠️  发送启动通知失败: {}", e);
         } else {
             info!("✅ 启动通知发送成功");
@@ -200,7 +238,7 @@ async fn main() -> Result<()> {
     } else {
         // 无命令行参数，启动完整服务
         info!("启动 BNHBot 完整服务...");
-        start_full_service(database, exchange_service, dingtalk_bot).await?;
+        start_full_service(database, exchange_service, dingtalk_bot, config).await?;
     }
     
     Ok(())
@@ -212,8 +250,9 @@ async fn start_web_server(
     _exchange_service: ExchangeService,
     dingtalk_bot: DingTalkBot,
     _registration_service: RegistrationService,
+    config: AppConfig,
 ) -> Result<()> {
-    let webhook_handler = DingTalkWebhookHandler::new(database, dingtalk_bot.clone());
+            let webhook_handler = DingTalkWebhookHandler::new(database, dingtalk_bot.clone(), config.web_base_url.clone());
     
     let app = Router::new()
         .route("/", get(serve_home_page))
@@ -225,11 +264,21 @@ async fn start_web_server(
         .route("/api/dingtalk/test", get(serve_webhook_test_page))
         .layer(CorsLayer::permissive());
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    info!("Web服务器启动在: http://{}", addr);
-    info!("报名表单: http://{}/register", addr);
-    info!("管理界面: http://{}/admin", addr);
-    info!("Webhook测试: http://{}/api/dingtalk/test", addr);
+    // 解析IP地址
+    let ip_parts: Vec<u8> = config.web_host.split('.')
+        .map(|s| s.parse().unwrap_or(127))
+        .collect();
+    let ip = if ip_parts.len() == 4 {
+        [ip_parts[0], ip_parts[1], ip_parts[2], ip_parts[3]]
+    } else {
+        [127, 0, 0, 1]
+    };
+    
+    let addr = SocketAddr::from((ip, config.web_port));
+    info!("Web服务器启动在: {}", config.web_base_url);
+    info!("报名表单: {}/register", config.web_base_url);
+    info!("管理界面: {}/admin", config.web_base_url);
+    info!("Webhook测试: {}/api/dingtalk/test", config.web_base_url);
     
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
@@ -412,6 +461,7 @@ async fn handle_dingtalk_webhook(
 
 // Webhook测试页面
 async fn serve_webhook_test_page() -> Html<String> {
+    // 这里需要从配置中获取，暂时使用默认值
     let webhook_url = "http://localhost:3000/api/dingtalk/webhook";
     let curl_commands = WebhookTester::generate_curl_commands(webhook_url);
     
@@ -492,6 +542,7 @@ async fn start_full_service(
     database: DatabaseService,
     exchange_service: ExchangeService,
     dingtalk_bot: DingTalkBot,
+    config: AppConfig,
 ) -> Result<()> {
     info!("启动 BNHBot 完整服务...");
     
@@ -511,7 +562,7 @@ async fn start_full_service(
     });
     
     // 启动Web服务器（用于报名表单和管理界面）
-    start_web_server(database, exchange_service, dingtalk_bot, registration_service).await?;
+    start_web_server(database, exchange_service, dingtalk_bot, registration_service, config.clone()).await?;
     
     Ok(())
 }

@@ -89,6 +89,7 @@ cargo build
 # 3. 配置环境变量
 cp env.example .env
 # 编辑 .env 文件，配置钉钉机器人信息
+# 详细配置说明请参考 [CONFIGURATION.md](CONFIGURATION.md)
 
 # 4. 启动完整服务
 cargo run

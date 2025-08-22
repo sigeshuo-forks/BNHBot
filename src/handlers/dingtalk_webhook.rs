@@ -42,13 +42,15 @@ pub struct DingTalkResponse {
 pub struct DingTalkWebhookHandler {
     database: DatabaseService,
     dingtalk_bot: DingTalkBot,
+    web_base_url: String,
 }
 
 impl DingTalkWebhookHandler {
-    pub fn new(database: DatabaseService, dingtalk_bot: DingTalkBot) -> Self {
+    pub fn new(database: DatabaseService, dingtalk_bot: DingTalkBot, web_base_url: String) -> Self {
         Self {
             database,
             dingtalk_bot,
+            web_base_url,
         }
     }
 
@@ -99,9 +101,13 @@ impl DingTalkWebhookHandler {
             
             if at_users.is_empty() {
                 // 如果没有@用户，发送通用回复
-                let reply_message = "🎯 您好！\n\n📝 请点击以下链接进行报名：\n🔗 http://localhost:3000/register\n\n💡 报名说明：\n• 支持多种报名类型\n• 填写完成后自动提交审核\n• 管理员会及时处理您的申请\n\n❓ 如有问题，请联系管理员";
+                let registration_url = format!("{}/register", self.web_base_url);
+                let reply_message = format!(
+                    "🎯 您好！\n\n📝 请点击以下链接进行报名：\n🔗 {}\n\n💡 报名说明：\n• 支持多种报名类型\n• 填写完成后自动提交审核\n• 管理员会及时处理您的申请\n\n💡 操作步骤：\n1. 点击上方报名链接\n2. 填写报名信息\n3. 提交等待审核\n\n❓ 如有问题，请联系管理员",
+                    registration_url
+                );
                 
-                self.dingtalk_bot.send_text_message(reply_message).await?;
+                self.dingtalk_bot.send_text_message(&reply_message).await?;
                 info!("发送通用报名回复");
             } else {
                 // 为每个@的用户发送报名链接
