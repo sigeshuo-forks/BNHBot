@@ -39,9 +39,8 @@ impl RegistrationService {
         // 验证API信息
         self.validate_api_info(&request)?;
 
-        // 这里应该调用数据库服务创建报名记录
-        // 暂时返回模拟数据
-        Ok(Registration {
+        // 创建报名记录
+        let registration = Registration {
             id,
             user_name: request.user_name,
             exchange,
@@ -53,14 +52,17 @@ impl RegistrationService {
             created_at: now,
             updated_at: now,
             reviewed_at: None,
-        })
+        };
+
+        // 保存到数据库
+        self.database.create_registration(&registration).await?;
+        
+        Ok(registration)
     }
 
     /// 获取待审核的报名
     pub async fn get_pending_registrations(&self) -> Result<Vec<Registration>> {
-        // 这里应该从数据库查询
-        // 暂时返回空向量
-        Ok(vec![])
+        self.database.get_registrations_by_status(RegistrationStatus::Pending).await
     }
 
     /// 审核报名
@@ -70,37 +72,46 @@ impl RegistrationService {
         status: RegistrationStatus,
         admin_notes: Option<String>,
     ) -> Result<Registration> {
-        // 这里应该更新数据库
-        // 暂时返回模拟数据
-        Ok(Registration {
-            id: registration_id,
-            user_name: "临时用户".to_string(), // 临时值
-            exchange: RegistrationExchangeType::Binance, // 临时值
-            api_key: "temp_key".to_string(),
-            secret_key: "temp_secret".to_string(),
-            passphrase: None,
-            status,
-            admin_notes,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            reviewed_at: Some(Utc::now()),
-        })
+        // 从数据库获取现有记录
+        let mut registration = self.database.get_registration_by_id(registration_id).await?
+            .ok_or_else(|| anyhow::anyhow!("报名记录不存在"))?;
+
+        // 更新状态和备注
+        registration.status = status;
+        registration.admin_notes = admin_notes;
+        registration.updated_at = Utc::now();
+        registration.reviewed_at = Some(Utc::now());
+
+        // 保存到数据库
+        self.database.update_registration(&registration).await?;
+
+        Ok(registration)
     }
 
     /// 获取报名统计
     pub async fn get_registration_stats(&self) -> Result<crate::models::registration::RegistrationStats> {
-        // 这里应该从数据库统计
-        // 暂时返回模拟数据
+        let all_registrations = self.database.get_all_registrations().await?;
+        
+        let total = all_registrations.len();
+        let pending = all_registrations.iter().filter(|r| matches!(r.status, RegistrationStatus::Pending)).count();
+        let approved = all_registrations.iter().filter(|r| matches!(r.status, RegistrationStatus::Approved)).count();
+        let rejected = all_registrations.iter().filter(|r| matches!(r.status, RegistrationStatus::Rejected)).count();
+        
         let mut by_exchange = HashMap::new();
-        by_exchange.insert("binance".to_string(), 1);
-        by_exchange.insert("okx".to_string(), 1);
-        by_exchange.insert("weex".to_string(), 1);
+        for registration in &all_registrations {
+            let exchange_key = match registration.exchange {
+                RegistrationExchangeType::Binance => "binance",
+                RegistrationExchangeType::OKX => "okx",
+                RegistrationExchangeType::WEEX => "weex",
+            };
+            *by_exchange.entry(exchange_key.to_string()).or_insert(0) += 1;
+        }
         
         Ok(crate::models::registration::RegistrationStats {
-            total: 3,
-            pending: 1,
-            approved: 1,
-            rejected: 1,
+            total,
+            pending,
+            approved,
+            rejected,
             by_exchange,
         })
     }
@@ -131,58 +142,12 @@ impl RegistrationService {
 
     /// 获取所有报名记录（管理员用）
     pub async fn get_all_registrations(&self) -> Result<Vec<Registration>> {
-        // 这里应该从数据库查询所有报名记录
-        // 暂时返回模拟数据
-        let now = Utc::now();
-        Ok(vec![
-            Registration {
-                id: Uuid::new_v4(),
-                user_name: "张三".to_string(),
-                exchange: RegistrationExchangeType::Binance,
-                api_key: "BNBXXXXXXXXXXXXX".to_string(),
-                secret_key: "secret123456".to_string(),
-                passphrase: None,
-                status: RegistrationStatus::Pending,
-                admin_notes: None,
-                created_at: now,
-                updated_at: now,
-                reviewed_at: None,
-            },
-            Registration {
-                id: Uuid::new_v4(),
-                user_name: "李四".to_string(),
-                exchange: RegistrationExchangeType::OKX,
-                api_key: "OKXAPIKEY123".to_string(),
-                secret_key: "okxsecret456".to_string(),
-                passphrase: Some("okxpass789".to_string()),
-                status: RegistrationStatus::Approved,
-                admin_notes: Some("API验证通过".to_string()),
-                created_at: now,
-                updated_at: now,
-                reviewed_at: Some(now),
-            },
-            Registration {
-                id: Uuid::new_v4(),
-                user_name: "王五".to_string(),
-                exchange: RegistrationExchangeType::WEEX,
-                api_key: "WEEXKEY789".to_string(),
-                secret_key: "weexsecret123".to_string(),
-                passphrase: None,
-                status: RegistrationStatus::Rejected,
-                admin_notes: Some("API无效".to_string()),
-                created_at: now,
-                updated_at: now,
-                reviewed_at: Some(now),
-            },
-        ])
+        self.database.get_all_registrations().await
     }
 
     /// 删除报名记录
     pub async fn delete_registration(&self, registration_id: Uuid) -> Result<()> {
-        // 这里应该从数据库删除报名记录
-        // 暂时模拟成功
-        log::info!("删除报名记录: {}", registration_id);
-        Ok(())
+        self.database.delete_registration(registration_id).await
     }
 
     /// 获取交易所API要求说明

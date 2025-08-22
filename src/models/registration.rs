@@ -3,7 +3,7 @@ use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
 /// 报名状态
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum RegistrationStatus {
     Pending,    // 待审核
     Approved,   // 已通过
@@ -19,12 +19,14 @@ impl Default for RegistrationStatus {
 impl std::fmt::Display for RegistrationStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RegistrationStatus::Pending => write!(f, "待审核"),
-            RegistrationStatus::Approved => write!(f, "已通过"),
-            RegistrationStatus::Rejected => write!(f, "已拒绝"),
+            RegistrationStatus::Pending => write!(f, "Pending"),
+            RegistrationStatus::Approved => write!(f, "Approved"),
+            RegistrationStatus::Rejected => write!(f, "Rejected"),
         }
     }
 }
+
+
 
 /// 交易所类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,12 +39,14 @@ pub enum RegistrationExchangeType {
 impl std::fmt::Display for RegistrationExchangeType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RegistrationExchangeType::Binance => write!(f, "币安"),
-            RegistrationExchangeType::OKX => write!(f, "欧易"),
+            RegistrationExchangeType::Binance => write!(f, "Binance"),
+            RegistrationExchangeType::OKX => write!(f, "OKX"),
             RegistrationExchangeType::WEEX => write!(f, "WEEX"),
         }
     }
 }
+
+
 
 /// 报名请求
 #[derive(Debug, Deserialize)]
