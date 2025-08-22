@@ -47,6 +47,7 @@ impl std::fmt::Display for RegistrationExchangeType {
 /// 报名请求
 #[derive(Debug, Deserialize)]
 pub struct RegistrationRequest {
+    pub user_name: String,
     pub exchange: String,
     pub api_key: String,
     pub secret_key: String,
@@ -57,6 +58,7 @@ pub struct RegistrationRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Registration {
     pub id: Uuid,
+    pub user_name: String,
     pub exchange: RegistrationExchangeType,
     pub api_key: String,
     pub secret_key: String,

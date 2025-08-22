@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 use std::fs;
 use std::path::Path;
 use axum::{
-    routing::{get, post},
+    routing::{get, post, delete},
     http::StatusCode,
     Json, Router,
     response::Html,
@@ -16,10 +16,11 @@ use axum::{
 use tower_http::cors::CorsLayer;
 
 use bnhbot::*;
+use bnhbot::middleware::{security_headers_middleware, admin_auth_middleware};
 
 use handlers::command::{Cli, CommandHandler};
 use handlers::dingtalk_webhook::{DingTalkWebhookHandler, DingTalkMessage, DingTalkResponse};
-use services::{DatabaseService, ExchangeService, DingTalkBot, Scheduler, RegistrationService};
+use services::{DatabaseService, ExchangeService, DingTalkBot, Scheduler, RegistrationService, AuthService};
 use models::registration::RegistrationResponse;
 use utils::dingtalk_check::DingTalkChecker;
 use utils::webhook_test::WebhookTester;
@@ -34,6 +35,9 @@ struct AppConfig {
     web_host: String,
     web_port: u16,
     web_base_url: String,
+    admin_password: String,
+    jwt_secret: String,
+    session_timeout_hours: i64,
 }
 
 impl AppConfig {
@@ -46,6 +50,9 @@ impl AppConfig {
         let web_host = env::var("WEB_SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
         let web_port = env::var("WEB_SERVER_PORT").unwrap_or_else(|_| "3000".to_string()).parse().unwrap_or(3000);
         let web_base_url = env::var("WEB_SERVER_BASE_URL").unwrap_or_else(|_| format!("http://{}:{}", web_host, web_port));
+        let admin_password = env::var("ADMIN_PASSWORD").unwrap_or_else(|_| "admin123".to_string());
+        let jwt_secret = env::var("JWT_SECRET").unwrap_or_else(|_| "default_jwt_secret_change_in_production".to_string());
+        let session_timeout_hours = env::var("SESSION_TIMEOUT_HOURS").unwrap_or_else(|_| "24".to_string()).parse().unwrap_or(24);
         
         Ok(Self {
             database_url,
@@ -55,6 +62,9 @@ impl AppConfig {
             web_host,
             web_port,
             web_base_url,
+            admin_password,
+            jwt_secret,
+            session_timeout_hours,
         })
     }
 }
@@ -180,6 +190,7 @@ async fn main() -> Result<()> {
     info!("✅ 数据库服务初始化成功");
     let exchange_service = ExchangeService::new();
     let dingtalk_bot = DingTalkBot::new(config.dingtalk_webhook.clone(), config.dingtalk_secret.clone());
+    let auth_service = AuthService::new()?;
     
     // 检查钉钉机器人配置
     info!("🔧 检查钉钉机器人配置...");
@@ -239,7 +250,7 @@ async fn main() -> Result<()> {
     } else {
         // 无命令行参数，启动完整服务
         info!("启动 BNHBot 完整服务...");
-        start_full_service(database, exchange_service, dingtalk_bot, config).await?;
+        start_full_service(database, exchange_service, dingtalk_bot, auth_service, config).await?;
     }
     
     Ok(())
@@ -251,20 +262,44 @@ async fn start_web_server(
     _exchange_service: ExchangeService,
     dingtalk_bot: DingTalkBot,
     registration_service: RegistrationService,
+    auth_service: AuthService,
     config: AppConfig,
 ) -> Result<()> {
             let webhook_handler = DingTalkWebhookHandler::new(database, dingtalk_bot.clone(), config.web_base_url.clone());
     
-    let app = Router::new()
-        .route("/", get(serve_home_page))
-        .route("/register", get(serve_registration_form))
-        .route("/api/register", post(handlers::registration::handle_registration))
-        .route("/api/registrations", get(list_registrations))
-        .route("/api/registrations/:id/review", post(review_registration_api))
-        .route("/api/dingtalk/webhook", post(move |payload| handle_dingtalk_webhook(payload, webhook_handler.clone())))
-        .route("/api/dingtalk/test", get(serve_webhook_test_page))
-        .with_state(registration_service)
-        .layer(CorsLayer::permissive());
+            // 公开路由（无需认证）
+        let public_routes = Router::new()
+            .route("/", get(serve_home_page))
+            .route("/register", get(serve_registration_form))
+            .route("/admin/login", get(serve_admin_login_page))
+            .route("/api/register", post(handlers::registration::handle_registration))
+            .route("/api/admin/login", post(handlers::admin::admin_login))
+            .route("/api/dingtalk/webhook", post(move |payload| handle_dingtalk_webhook(payload, webhook_handler.clone())))
+            .route("/api/dingtalk/test", get(serve_webhook_test_page))
+            .with_state((registration_service.clone(), auth_service.clone()));
+
+        // 需要认证的管理API路由（不包括页面）
+        let admin_api_routes = Router::new()
+            .route("/api/admin/registrations", get(handlers::admin::get_all_registrations))
+            .route("/api/admin/stats", get(handlers::admin::get_registration_stats))
+            .route("/api/admin/registrations/:id/review", post(handlers::admin::review_registration))
+            .route("/api/admin/registrations/:id", delete(handlers::admin::delete_registration))
+            .route("/api/registrations", get(list_registrations))
+            .route("/api/registrations/:id/review", post(review_registration_api))
+            .with_state((registration_service.clone(), auth_service.clone()))
+            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+
+        // 管理页面路由（不需要服务器端认证，由前端JavaScript处理）
+        let admin_page_routes = Router::new()
+            .route("/admin", get(serve_admin_page))
+            .with_state((registration_service, auth_service));
+
+        let app = Router::new()
+            .merge(public_routes)
+            .merge(admin_api_routes)
+            .merge(admin_page_routes)
+            .layer(axum::middleware::from_fn(security_headers_middleware))
+            .layer(CorsLayer::permissive());
 
     // 解析IP地址
     let ip_parts: Vec<u8> = config.web_host.split('.')
@@ -334,6 +369,18 @@ async fn serve_home_page() -> Html<&'static str> {
 async fn serve_registration_form() -> Html<String> {
     // 读取简化的报名表单HTML文件
     let html_content = include_str!("../templates/registration_form.html");
+    Html(html_content.to_string())
+}
+
+async fn serve_admin_page() -> Html<String> {
+    // 读取管理页面HTML文件
+    let html_content = include_str!("../templates/admin_page.html");
+    Html(html_content.to_string())
+}
+
+async fn serve_admin_login_page() -> Html<String> {
+    // 读取管理员登录页面HTML文件
+    let html_content = include_str!("../templates/admin_login.html");
     Html(html_content.to_string())
 }
 
@@ -450,6 +497,7 @@ async fn start_full_service(
     database: DatabaseService,
     exchange_service: ExchangeService,
     dingtalk_bot: DingTalkBot,
+    auth_service: AuthService,
     config: AppConfig,
 ) -> Result<()> {
     info!("启动 BNHBot 完整服务...");
@@ -470,7 +518,7 @@ async fn start_full_service(
     });
     
     // 启动Web服务器（用于报名表单和管理界面）
-    start_web_server(database, exchange_service, dingtalk_bot, registration_service, config.clone()).await?;
+    start_web_server(database, exchange_service, dingtalk_bot, registration_service, auth_service, config.clone()).await?;
     
     Ok(())
 }

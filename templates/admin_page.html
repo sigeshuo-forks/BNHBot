@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNHBot 管理后台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 2em;
+            font-weight: 300;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .search-box input {
+            padding: 10px;
+            border: 2px solid #e1e5e9;
+            border-radius: 5px;
+            font-size: 14px;
+            width: 300px;
+        }
+        
+        .search-box select {
+            padding: 10px;
+            border: 2px solid #e1e5e9;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5a6fd8;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table th {
+            background: #f8f9fa;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .table td {
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .table tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-approved {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-rejected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .exchange-badge {
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .exchange-binance {
+            background: #f0b90b;
+            color: white;
+        }
+        
+        .exchange-okx {
+            background: #0052ff;
+            color: white;
+        }
+        
+        .exchange-weex {
+            background: #00d4aa;
+            color: white;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .actions .btn {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+        }
+        
+        .close {
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #aaa;
+        }
+        
+        .close:hover {
+            color: #000;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e1e5e9;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 10px;
+            color: #999;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding: 20px;
+        }
+        
+        .pagination button {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        
+        .pagination button:hover {
+            background: #f8f9fa;
+        }
+        
+        .pagination button.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <div>
+                <h1>🤖 BNHBot 管理后台</h1>
+            </div>
+            <div style="display: flex; align-items: center; gap: 30px;">
+                <button class="btn btn-warning" onclick="logout()" style="padding: 8px 16px; font-size: 14px;">
+                    🚪 退出登录
+                </button>
+                <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalCount">-</div>
+                    <div class="stat-label">总报名</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="pendingCount">-</div>
+                    <div class="stat-label">待审核</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="approvedCount">-</div>
+                    <div class="stat-label">已通过</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="rejectedCount">-</div>
+                    <div class="stat-label">已拒绝</div>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="搜索用户名、API Key或备注...">
+                <select id="statusFilter">
+                    <option value="">全部状态</option>
+                    <option value="pending">待审核</option>
+                    <option value="approved">已通过</option>
+                    <option value="rejected">已拒绝</option>
+                </select>
+                <select id="exchangeFilter">
+                    <option value="">全部交易所</option>
+                    <option value="binance">币安</option>
+                    <option value="okx">欧易</option>
+                    <option value="weex">WEEX</option>
+                </select>
+                <button class="btn btn-primary" onclick="loadRegistrations()">🔍 搜索</button>
+            </div>
+            <button class="btn btn-primary" onclick="loadRegistrations()">🔄 刷新</button>
+        </div>
+
+        <div class="table-container">
+            <div id="loadingState" class="loading">
+                <div>⏳ 加载中...</div>
+            </div>
+            
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <h3>📝 暂无报名记录</h3>
+                <p>还没有用户提交报名申请</p>
+            </div>
+            
+            <table class="table" id="registrationsTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名称</th>
+                        <th>交易所</th>
+                        <th>API Key</th>
+                        <th>状态</th>
+                        <th>提交时间</th>
+                        <th>审核时间</th>
+                        <th>管理员备注</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="registrationsBody">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pagination" id="pagination" style="display: none;">
+            <button id="prevPage" onclick="changePage(-1)">← 上一页</button>
+            <span id="pageInfo">第 1 页，共 1 页</span>
+            <button id="nextPage" onclick="changePage(1)">下一页 →</button>
+        </div>
+    </div>
+
+    <!-- 审核模态框 -->
+    <div id="reviewModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📋 审核报名</h3>
+                <span class="close" onclick="closeModal('reviewModal')">&times;</span>
+            </div>
+            <form id="reviewForm">
+                <input type="hidden" id="reviewRegistrationId">
+                
+                <div class="form-group">
+                    <label>用户名称:</label>
+                    <input type="text" id="reviewUserName" readonly>
+                </div>
+                
+                <div class="form-group">
+                    <label>交易所:</label>
+                    <input type="text" id="reviewExchange" readonly>
+                </div>
+                
+                <div class="form-group">
+                    <label>API Key:</label>
+                    <input type="text" id="reviewApiKey" readonly>
+                </div>
+                
+                <div class="form-group">
+                    <label>审核状态:</label>
+                    <select id="reviewStatus" required>
+                        <option value="">请选择</option>
+                        <option value="approved">✅ 通过</option>
+                        <option value="rejected">❌ 拒绝</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>管理员备注:</label>
+                    <textarea id="reviewNotes" placeholder="请输入审核备注..."></textarea>
+                </div>
+                
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn" onclick="closeModal('reviewModal')">取消</button>
+                    <button type="submit" class="btn btn-primary">提交审核</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 详情模态框 -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📄 报名详情</h3>
+                <span class="close" onclick="closeModal('detailModal')">&times;</span>
+            </div>
+            <div id="detailContent">
+                <!-- 详情内容将通过JavaScript填充 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let totalPages = 1;
+        const pageSize = 10;
+        let allRegistrations = [];
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 检查认证状态
+            if (!checkAuth()) {
+                window.location.href = '/admin/login';
+                return;
+            }
+            
+            loadRegistrations();
+            loadStats();
+        });
+
+        // 检查认证状态
+        function checkAuth() {
+            const token = localStorage.getItem('admin_token');
+            const expires = localStorage.getItem('admin_expires');
+            
+            if (!token || !expires) {
+                return false;
+            }
+            
+            const expiresDate = new Date(expires);
+            if (expiresDate <= new Date()) {
+                // Token已过期，清除并重定向
+                localStorage.removeItem('admin_token');
+                localStorage.removeItem('admin_expires');
+                return false;
+            }
+            
+            return true;
+        }
+
+        // 获取认证头部
+        function getAuthHeaders() {
+            const token = localStorage.getItem('admin_token');
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            };
+        }
+
+        // 退出登录
+        function logout() {
+            if (confirm('确定要退出登录吗？')) {
+                localStorage.removeItem('admin_token');
+                localStorage.removeItem('admin_expires');
+                window.location.href = '/admin/login';
+            }
+        }
+
+        // 加载报名列表
+        async function loadRegistrations() {
+            const loadingState = document.getElementById('loadingState');
+            const emptyState = document.getElementById('emptyState');
+            const table = document.getElementById('registrationsTable');
+            
+            loadingState.style.display = 'block';
+            emptyState.style.display = 'none';
+            table.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/admin/registrations', {
+                    headers: getAuthHeaders()
+                });
+                if (!response.ok) {
+                    if (response.status === 401 || response.status === 403) {
+                        // 认证失败，重定向到登录页面
+                        localStorage.removeItem('admin_token');
+                        localStorage.removeItem('admin_expires');
+                        window.location.href = '/admin/login';
+                        return;
+                    }
+                    throw new Error('获取数据失败');
+                }
+                
+                allRegistrations = await response.json();
+                
+                if (allRegistrations.length === 0) {
+                    loadingState.style.display = 'none';
+                    emptyState.style.display = 'block';
+                } else {
+                    displayRegistrations();
+                    loadingState.style.display = 'none';
+                    table.style.display = 'table';
+                }
+            } catch (error) {
+                console.error('加载失败:', error);
+                loadingState.innerHTML = '<div style="color: #dc3545;">❌ 加载失败: ' + error.message + '</div>';
+            }
+        }
+
+        // 显示报名列表
+        function displayRegistrations() {
+            const tbody = document.getElementById('registrationsBody');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+            const exchangeFilter = document.getElementById('exchangeFilter').value;
+            
+            // 过滤数据
+            let filteredRegistrations = allRegistrations.filter(reg => {
+                const matchesSearch = !searchTerm || 
+                    reg.user_name.toLowerCase().includes(searchTerm) ||
+                    reg.api_key.toLowerCase().includes(searchTerm) ||
+                    (reg.admin_notes && reg.admin_notes.toLowerCase().includes(searchTerm));
+                const matchesStatus = !statusFilter || reg.status.toLowerCase() === statusFilter;
+                const matchesExchange = !exchangeFilter || reg.exchange.toLowerCase() === exchangeFilter;
+                
+                return matchesSearch && matchesStatus && matchesExchange;
+            });
+            
+            // 分页
+            totalPages = Math.ceil(filteredRegistrations.length / pageSize);
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const pageRegistrations = filteredRegistrations.slice(startIndex, endIndex);
+            
+            // 生成表格行
+            tbody.innerHTML = pageRegistrations.map(reg => `
+                <tr>
+                    <td>${reg.id.substring(0, 8)}...</td>
+                    <td><strong>${reg.user_name}</strong></td>
+                    <td><span class="exchange-badge exchange-${reg.exchange.toLowerCase()}">${getExchangeName(reg.exchange)}</span></td>
+                    <td>${reg.api_key.substring(0, 10)}***</td>
+                    <td><span class="status-badge status-${reg.status.toLowerCase()}">${getStatusText(reg.status)}</span></td>
+                    <td>${formatDate(reg.created_at)}</td>
+                    <td>${reg.reviewed_at ? formatDate(reg.reviewed_at) : '-'}</td>
+                    <td>${reg.admin_notes || '-'}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn btn-primary" onclick="showDetail('${reg.id}')">详情</button>
+                            ${reg.status.toLowerCase() === 'pending' ? `<button class="btn btn-success" onclick="showReview('${reg.id}')">审核</button>` : ''}
+                            <button class="btn btn-danger" onclick="deleteRegistration('${reg.id}')">删除</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            
+            updatePagination();
+        }
+
+        // 加载统计数据
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/admin/stats', {
+                    headers: getAuthHeaders()
+                });
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('totalCount').textContent = stats.total;
+                    document.getElementById('pendingCount').textContent = stats.pending;
+                    document.getElementById('approvedCount').textContent = stats.approved;
+                    document.getElementById('rejectedCount').textContent = stats.rejected;
+                } else if (response.status === 401 || response.status === 403) {
+                    // 认证失败，重定向到登录页面
+                    localStorage.removeItem('admin_token');
+                    localStorage.removeItem('admin_expires');
+                    window.location.href = '/admin/login';
+                }
+            } catch (error) {
+                console.error('加载统计失败:', error);
+            }
+        }
+
+        // 显示审核模态框
+        function showReview(registrationId) {
+            const registration = allRegistrations.find(r => r.id === registrationId);
+            if (!registration) return;
+            
+            document.getElementById('reviewRegistrationId').value = registrationId;
+            document.getElementById('reviewUserName').value = registration.user_name;
+            document.getElementById('reviewExchange').value = getExchangeName(registration.exchange);
+            document.getElementById('reviewApiKey').value = registration.api_key;
+            document.getElementById('reviewStatus').value = '';
+            document.getElementById('reviewNotes').value = '';
+            
+            document.getElementById('reviewModal').style.display = 'block';
+        }
+
+        // 显示详情模态框
+        function showDetail(registrationId) {
+            const registration = allRegistrations.find(r => r.id === registrationId);
+            if (!registration) return;
+            
+            const content = `
+                <div class="form-group">
+                    <label>报名ID:</label>
+                    <input type="text" value="${registration.id}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>用户名称:</label>
+                    <input type="text" value="${registration.user_name}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>交易所:</label>
+                    <input type="text" value="${getExchangeName(registration.exchange)}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>API Key:</label>
+                    <input type="text" value="${registration.api_key}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Secret Key:</label>
+                    <input type="password" value="${registration.secret_key}" readonly>
+                </div>
+                ${registration.passphrase ? `
+                <div class="form-group">
+                    <label>Passphrase:</label>
+                    <input type="password" value="${registration.passphrase}" readonly>
+                </div>
+                ` : ''}
+                <div class="form-group">
+                    <label>状态:</label>
+                    <input type="text" value="${getStatusText(registration.status)}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>提交时间:</label>
+                    <input type="text" value="${formatDate(registration.created_at)}" readonly>
+                </div>
+                ${registration.reviewed_at ? `
+                <div class="form-group">
+                    <label>审核时间:</label>
+                    <input type="text" value="${formatDate(registration.reviewed_at)}" readonly>
+                </div>
+                ` : ''}
+                ${registration.admin_notes ? `
+                <div class="form-group">
+                    <label>管理员备注:</label>
+                    <textarea readonly>${registration.admin_notes}</textarea>
+                </div>
+                ` : ''}
+            `;
+            
+            document.getElementById('detailContent').innerHTML = content;
+            document.getElementById('detailModal').style.display = 'block';
+        }
+
+        // 删除报名
+        async function deleteRegistration(registrationId) {
+            if (!confirm('确定要删除这个报名记录吗？此操作不可恢复！')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/registrations/${registrationId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                
+                if (response.ok) {
+                    alert('删除成功！');
+                    loadRegistrations();
+                    loadStats();
+                } else {
+                    const error = await response.text();
+                    alert('删除失败: ' + error);
+                }
+            } catch (error) {
+                alert('删除失败: ' + error.message);
+            }
+        }
+
+        // 提交审核
+        document.getElementById('reviewForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const registrationId = document.getElementById('reviewRegistrationId').value;
+            const status = document.getElementById('reviewStatus').value;
+            const notes = document.getElementById('reviewNotes').value;
+            
+            try {
+                const response = await fetch(`/api/admin/registrations/${registrationId}/review`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({
+                        status: status,
+                        admin_notes: notes
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('审核成功！');
+                    closeModal('reviewModal');
+                    loadRegistrations();
+                    loadStats();
+                } else {
+                    const error = await response.text();
+                    alert('审核失败: ' + error);
+                }
+            } catch (error) {
+                alert('审核失败: ' + error.message);
+            }
+        });
+
+        // 关闭模态框
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // 分页相关
+        function changePage(delta) {
+            const newPage = currentPage + delta;
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                displayRegistrations();
+            }
+        }
+
+        function updatePagination() {
+            const pagination = document.getElementById('pagination');
+            const prevBtn = document.getElementById('prevPage');
+            const nextBtn = document.getElementById('nextPage');
+            const pageInfo = document.getElementById('pageInfo');
+            
+            if (totalPages <= 1) {
+                pagination.style.display = 'none';
+            } else {
+                pagination.style.display = 'flex';
+                prevBtn.disabled = currentPage <= 1;
+                nextBtn.disabled = currentPage >= totalPages;
+                pageInfo.textContent = `第 ${currentPage} 页，共 ${totalPages} 页`;
+            }
+        }
+
+        // 工具函数
+        function getExchangeName(exchange) {
+            const names = {
+                'binance': '币安',
+                'okx': '欧易',
+                'weex': 'WEEX'
+            };
+            return names[exchange.toLowerCase()] || exchange;
+        }
+
+        function getStatusText(status) {
+            const texts = {
+                'pending': '待审核',
+                'approved': '已通过',
+                'rejected': '已拒绝'
+            };
+            return texts[status.toLowerCase()] || status;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+
+        // 搜索框回车搜索
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                currentPage = 1;
+                displayRegistrations();
+            }
+        });
+
+        // 过滤器变化时自动搜索
+        document.getElementById('statusFilter').addEventListener('change', function() {
+            currentPage = 1;
+            displayRegistrations();
+        });
+
+        document.getElementById('exchangeFilter').addEventListener('change', function() {
+            currentPage = 1;
+            displayRegistrations();
+        });
+    </script>
+</body>
+</html>
