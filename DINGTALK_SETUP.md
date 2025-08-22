@@ -50,6 +50,7 @@ https://oapi.dingtalk.com/robot/send?access_token=YOUR_ACCESS_TOKEN
 ```bash
 DINGTALK_WEBHOOK=https://oapi.dingtalk.com/robot/send?access_token=YOUR_ACCESS_TOKEN
 DINGTALK_SECRET=YOUR_SECRET_KEY  # 如果设置了签名
+DINGTALK_AT_ALL=false  # 启动时是否@所有人，true/false
 ```
 
 ## 🔍 测试机器人

@@ -20,6 +20,7 @@ use bnhbot::*;
 use handlers::command::{Cli, CommandHandler};
 use handlers::dingtalk_webhook::{DingTalkWebhookHandler, DingTalkMessage, DingTalkResponse};
 use services::{DatabaseService, ExchangeService, DingTalkBot, Scheduler, RegistrationService};
+use utils::dingtalk_check::DingTalkChecker;
 
 // 创建默认环境变量文件
 fn create_default_env_if_needed() -> Result<()> {
@@ -31,6 +32,7 @@ fn create_default_env_if_needed() -> Result<()> {
 # 钉钉机器人配置
 DINGTALK_WEBHOOK=https://oapi.dingtalk.com/robot/send?access_token=YOUR_ACCESS_TOKEN
 DINGTALK_SECRET=YOUR_SECRET_KEY
+DINGTALK_AT_ALL=false
 
 # 数据库配置
 DATABASE_URL=sqlite:data/bnhbot.db
@@ -89,6 +91,8 @@ async fn main() -> Result<()> {
     let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/bnhbot.db".to_string());
     let dingtalk_webhook = env::var("DINGTALK_WEBHOOK").expect("DINGTALK_WEBHOOK 环境变量未设置");
     let dingtalk_secret = env::var("DINGTALK_SECRET").ok();
+    let dingtalk_webhook_clone = dingtalk_webhook.clone();
+    let dingtalk_secret_clone = dingtalk_secret.clone();
     
     // 确保数据目录存在
     info!("📁 创建数据目录...");
@@ -142,13 +146,30 @@ async fn main() -> Result<()> {
     let webhook_handler = DingTalkWebhookHandler::new(database.clone(), dingtalk_bot.clone());
     if let Err(e) = webhook_handler.check_config().await {
         warn!("⚠️  钉钉机器人配置检查失败: {}", e);
+        
+        // 显示详细的配置检查信息
+        if let Some(secret) = &dingtalk_secret_clone {
+            let check_info = DingTalkChecker::check_signature_config(&dingtalk_webhook_clone, secret);
+            info!("🔍 签名配置检查详情:\n{}", check_info);
+        }
+        
         info!("💡 请检查钉钉机器人配置：");
         info!("   1. 确保机器人已添加到群中");
         info!("   2. 确保开启了'接收消息'权限");
         info!("   3. 确保Webhook URL正确");
-        info!("   4. 如果设置了关键词，确保消息包含关键词");
+        info!("   4. 确保签名密钥配置正确");
+        info!("   5. 如果设置了关键词，确保消息包含关键词");
     } else {
         info!("✅ 钉钉机器人配置检查成功");
+        
+        // 发送启动通知到群
+        info!("📢 发送启动通知到钉钉群...");
+        let at_all = env::var("DINGTALK_AT_ALL").unwrap_or_else(|_| "false".to_string()).parse().unwrap_or(false);
+        if let Err(e) = dingtalk_bot.send_startup_notification(at_all).await {
+            warn!("⚠️  发送启动通知失败: {}", e);
+        } else {
+            info!("✅ 启动通知发送成功");
+        }
     }
     
     // 检查是否有命令行参数
