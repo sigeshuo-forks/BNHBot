@@ -75,15 +75,28 @@ impl ExchangeService {
     async fn get_okx_balance(&self, user_exchange: &UserExchange) -> Result<Vec<ExchangeBalance>> {
         let url = "https://www.okx.com/api/v5/account/balance";
         
-        let timestamp = chrono::Utc::now().to_rfc3339();
+        // 欧易API需要ISO8601格式的时间戳，精确到毫秒
+        let timestamp = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
         let method = "GET";
         let request_path = "/api/v5/account/balance";
+        let body = ""; // GET请求没有请求体
         
-        let sign_string = format!("{}{}{}", timestamp, method, request_path);
+        // 欧易签名字符串格式: timestamp + method + requestPath + body
+        let sign_string = format!("{}{}{}{}", timestamp, method, request_path, body);
         let signature = self.generate_okx_signature(&sign_string, &user_exchange.secret_key);
+        
+        // 添加调试日志
+        log::info!("欧易API调试信息:");
+        log::info!("  时间戳: {}", timestamp);
+        log::info!("  签名字符串: '{}'", sign_string);
+        log::info!("  API Key: {}", &user_exchange.api_key);
+        log::info!("  签名结果: {}", signature);
         
         let passphrase = user_exchange.passphrase.as_ref()
             .ok_or_else(|| anyhow::anyhow!("欧易API需要passphrase"))?;
+        
+        // 欧易API的passphrase直接使用原始值，不需要编码
+        log::info!("  Passphrase: {}", passphrase);
 
         let response = self.client
             .get(url)
@@ -195,6 +208,7 @@ impl ExchangeService {
         use sha2::Sha256;
         use base64::Engine;
         
+        // 欧易API的secret_key直接使用原始字符串，不需要base64解码
         let mut mac = Hmac::<Sha256>::new_from_slice(secret_key.as_bytes())
             .expect("HMAC can take key of any size");
         mac.update(sign_string.as_bytes());

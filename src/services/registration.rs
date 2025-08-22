@@ -145,6 +145,11 @@ impl RegistrationService {
         self.database.get_all_registrations().await
     }
 
+    /// 根据ID获取报名记录
+    pub async fn get_registration_by_id(&self, id: Uuid) -> Result<Option<Registration>> {
+        self.database.get_registration_by_id(id).await
+    }
+
     /// 删除报名记录
     pub async fn delete_registration(&self, registration_id: Uuid) -> Result<()> {
         self.database.delete_registration(registration_id).await

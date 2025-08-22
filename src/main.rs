@@ -259,7 +259,7 @@ async fn main() -> Result<()> {
 // 启动Web服务器
 async fn start_web_server(
     database: DatabaseService,
-    _exchange_service: ExchangeService,
+    exchange_service: ExchangeService,
     dingtalk_bot: DingTalkBot,
     registration_service: RegistrationService,
     auth_service: AuthService,
@@ -276,7 +276,7 @@ async fn start_web_server(
             .route("/api/admin/login", post(handlers::admin::admin_login))
             .route("/api/dingtalk/webhook", post(move |payload| handle_dingtalk_webhook(payload, webhook_handler.clone())))
             .route("/api/dingtalk/test", get(serve_webhook_test_page))
-            .with_state((registration_service.clone(), auth_service.clone()));
+            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone()));
 
         // 需要认证的管理API路由（不包括页面）
         let admin_api_routes = Router::new()
@@ -284,15 +284,17 @@ async fn start_web_server(
             .route("/api/admin/stats", get(handlers::admin::get_registration_stats))
             .route("/api/admin/registrations/:id/review", post(handlers::admin::review_registration))
             .route("/api/admin/registrations/:id", delete(handlers::admin::delete_registration))
+            .route("/api/admin/registrations/:id/balance", get(handlers::admin::get_registration_balance))
+            .route("/api/admin/registrations/:id/test-balance", get(handlers::admin::test_registration_balance))
             .route("/api/registrations", get(list_registrations))
             .route("/api/registrations/:id/review", post(review_registration_api))
-            .with_state((registration_service.clone(), auth_service.clone()))
+            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone()))
             .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
 
         // 管理页面路由（不需要服务器端认证，由前端JavaScript处理）
         let admin_page_routes = Router::new()
             .route("/admin", get(serve_admin_page))
-            .with_state((registration_service, auth_service));
+            .with_state((registration_service, auth_service, exchange_service));
 
         let app = Router::new()
             .merge(public_routes)

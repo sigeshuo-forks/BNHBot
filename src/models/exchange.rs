@@ -34,44 +34,23 @@ pub struct OkxAccountBalance {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OkxBalanceData {
     pub details: Vec<OkxBalanceDetail>,
-    pub totalEq: String,
-    pub isoEq: String,
-    pub adjEq: String,
-    pub ordFroz: String,
-    pub imr: String,
-    pub mmr: String,
-    pub cTime: String,
-    pub uTime: String,
+    
+    // 使用flatten来捕获所有其他字段，避免解析错误
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OkxBalanceDetail {
+    // 必需字段
     pub ccy: String,
     pub eq: String,
-    pub cashBal: String,
-    pub uPL: String,
-    pub equity: String,
     pub availBal: String,
     pub frozenBal: String,
-    pub ordFrozen: String,
-    pub liab: String,
-    pub upl: String,
-    pub uplLiab: String,
-    pub crossLiab: String,
-    pub isoLiab: String,
-    pub mgnRatio: String,
-    pub interest: String,
-    pub notionalLever: String,
-    pub adl: String,
-    pub availPos: String,
-    pub marginRatio: String,
-    pub mgnMgnRatio: String,
-    pub ordAvail: String,
-    pub liqPx: String,
-    pub uplPx: String,
-    pub markPx: String,
-    pub cTime: String,
-    pub uTime: String,
+    
+    // 使用flatten来捕获所有其他字段，避免解析错误
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 // WEEX API响应结构

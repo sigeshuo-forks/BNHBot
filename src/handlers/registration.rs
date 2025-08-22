@@ -1,5 +1,5 @@
 use crate::models::registration::{RegistrationRequest, RegistrationResponse};
-use crate::services::{RegistrationService, AuthService};
+use crate::services::{RegistrationService, AuthService, ExchangeService};
 use axum::{
     extract::State,
     response::Json,
@@ -8,7 +8,7 @@ use axum::{
 
 
 pub async fn handle_registration(
-    State((registration_service, _auth_service)): State<(RegistrationService, AuthService)>,
+    State((registration_service, _auth_service, _exchange_service)): State<(RegistrationService, AuthService, ExchangeService)>,
     Json(request): Json<RegistrationRequest>,
 ) -> Result<Json<RegistrationResponse>, StatusCode> {
     // 创建报名

@@ -493,6 +493,27 @@
         </div>
     </div>
 
+    <!-- 余额显示模态框 -->
+    <div id="balanceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>💰 账户余额</h3>
+                <span class="close" onclick="closeModal('balanceModal')">&times;</span>
+            </div>
+            <div id="balanceContent">
+                <div id="balanceLoading" class="loading">
+                    <div>⏳ 正在获取余额信息...</div>
+                </div>
+                <div id="balanceData" style="display: none;">
+                    <!-- 余额数据将通过JavaScript填充 -->
+                </div>
+                <div id="balanceError" style="display: none; color: #dc3545;">
+                    <!-- 错误信息将通过JavaScript填充 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         let currentPage = 1;
         let totalPages = 1;
@@ -629,7 +650,11 @@
                     <td>
                         <div class="actions">
                             <button class="btn btn-primary" onclick="showDetail('${reg.id}')">详情</button>
-                            ${reg.status.toLowerCase() === 'pending' ? `<button class="btn btn-success" onclick="showReview('${reg.id}')">审核</button>` : ''}
+                            ${reg.status.toLowerCase() === 'pending' ? `
+                                <button class="btn btn-warning" onclick="testBalance('${reg.id}')">测试余额</button>
+                                <button class="btn btn-success" onclick="showReview('${reg.id}')">审核</button>
+                            ` : ''}
+                            ${reg.status.toLowerCase() === 'approved' ? `<button class="btn btn-info" onclick="getBalance('${reg.id}')">获取余额</button>` : ''}
                             <button class="btn btn-danger" onclick="deleteRegistration('${reg.id}')">删除</button>
                         </div>
                     </td>
@@ -758,6 +783,157 @@
             } catch (error) {
                 alert('删除失败: ' + error.message);
             }
+        }
+
+        // 测试账户余额（审核前）
+        async function testBalance(registrationId) {
+            const registration = allRegistrations.find(r => r.id === registrationId);
+            if (!registration) {
+                alert('找不到报名记录');
+                return;
+            }
+
+            // 显示模态框
+            document.getElementById('balanceModal').style.display = 'block';
+            document.getElementById('balanceLoading').style.display = 'block';
+            document.getElementById('balanceData').style.display = 'none';
+            document.getElementById('balanceError').style.display = 'none';
+
+            try {
+                const response = await fetch(`/api/admin/registrations/${registrationId}/test-balance`, {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    const balanceInfo = await response.json();
+                    displayBalance(registration, balanceInfo, true); // 第三个参数表示是测试模式
+                } else {
+                    const errorText = await response.text();
+                    showBalanceError(`API测试失败: ${errorText}`);
+                }
+            } catch (error) {
+                showBalanceError(`API测试失败: ${error.message}`);
+            }
+        }
+
+        // 获取账户余额（审核后）
+        async function getBalance(registrationId) {
+            const registration = allRegistrations.find(r => r.id === registrationId);
+            if (!registration) {
+                alert('找不到报名记录');
+                return;
+            }
+
+            // 显示模态框
+            document.getElementById('balanceModal').style.display = 'block';
+            document.getElementById('balanceLoading').style.display = 'block';
+            document.getElementById('balanceData').style.display = 'none';
+            document.getElementById('balanceError').style.display = 'none';
+
+            try {
+                const response = await fetch(`/api/admin/registrations/${registrationId}/balance`, {
+                    method: 'GET',
+                    headers: getAuthHeaders()
+                });
+
+                if (response.ok) {
+                    const balanceInfo = await response.json();
+                    displayBalance(registration, balanceInfo, false);
+                } else {
+                    const errorText = await response.text();
+                    showBalanceError(`获取余额失败: ${errorText}`);
+                }
+            } catch (error) {
+                showBalanceError(`获取余额失败: ${error.message}`);
+            }
+        }
+
+        // 显示余额信息
+        function displayBalance(registration, balanceInfo, isTestMode = false) {
+            document.getElementById('balanceLoading').style.display = 'none';
+            document.getElementById('balanceError').style.display = 'none';
+            
+            const balanceData = document.getElementById('balanceData');
+            
+            let content = `
+                ${isTestMode ? `
+                    <div class="form-group" style="background: #fff3cd; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                        <strong>🧪 API测试模式</strong><br>
+                        <small>此次查询用于验证API密钥的有效性，管理员可根据结果决定是否通过审核。</small>
+                    </div>
+                ` : ''}
+                <div class="form-group">
+                    <label>用户名称:</label>
+                    <input type="text" value="${registration.user_name}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>交易所:</label>
+                    <input type="text" value="${getExchangeName(registration.exchange)}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>查询时间:</label>
+                    <input type="text" value="${formatDate(balanceInfo.query_time)}" readonly>
+                </div>
+            `;
+
+            if (balanceInfo.success && balanceInfo.balances && balanceInfo.balances.length > 0) {
+                content += `
+                    <div class="form-group">
+                        <label>账户余额:</label>
+                        <div class="balance-table">
+                            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                                <thead>
+                                    <tr style="background: #f8f9fa;">
+                                        <th style="border: 1px solid #ddd; padding: 8px;">资产</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px;">可用余额</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px;">冻结余额</th>
+                                        <th style="border: 1px solid #ddd; padding: 8px;">总余额</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                balanceInfo.balances.forEach(balance => {
+                    content += `
+                        <tr>
+                            <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${balance.asset}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">${balance.free}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px;">${balance.locked}</td>
+                            <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${balance.total}</td>
+                        </tr>
+                    `;
+                });
+                
+                content += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            } else {
+                content += `
+                    <div class="form-group">
+                        <label>余额信息:</label>
+                        <div style="color: #6c757d; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                            ${balanceInfo.message || '暂无余额数据'}
+                        </div>
+                    </div>
+                `;
+            }
+
+            balanceData.innerHTML = content;
+            balanceData.style.display = 'block';
+        }
+
+        // 显示余额错误
+        function showBalanceError(errorMessage) {
+            document.getElementById('balanceLoading').style.display = 'none';
+            document.getElementById('balanceData').style.display = 'none';
+            
+            const balanceError = document.getElementById('balanceError');
+            balanceError.innerHTML = `<div style="padding: 20px; text-align: center;">❌ ${errorMessage}</div>`;
+            balanceError.style.display = 'block';
         }
 
         // 提交审核
