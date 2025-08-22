@@ -27,6 +27,8 @@ struct DingTalkText {
 struct DingTalkAt {
     #[serde(rename = "atMobiles")]
     at_mobiles: Vec<String>,
+    #[serde(rename = "atUserIds")]
+    at_user_ids: Vec<String>,
     #[serde(rename = "isAtAll")]
     is_at_all: bool,
 }
@@ -52,6 +54,7 @@ impl DingTalkBot {
             text: DingTalkText { content },
             at: DingTalkAt {
                 at_mobiles: vec![],
+                at_user_ids: vec![],
                 is_at_all: false,
             },
         };
@@ -66,6 +69,99 @@ impl DingTalkBot {
             text: DingTalkText { content },
             at: DingTalkAt {
                 at_mobiles: vec![],
+                at_user_ids: vec![],
+                is_at_all: false,
+            },
+        };
+
+        self.send_message(&message).await
+    }
+
+    /// 发送文本消息
+    pub async fn send_text_message(&self, message: &str) -> Result<()> {
+        let payload = DingTalkMessage {
+            msgtype: "text".to_string(),
+            text: DingTalkText {
+                content: message.to_string(),
+            },
+            at: DingTalkAt {
+                at_mobiles: vec![],
+                at_user_ids: vec![],
+                is_at_all: false,
+            },
+        };
+        
+        self.send_message(&payload).await
+    }
+
+    /// 发送带@功能的文本消息
+    pub async fn send_text_message_with_at(&self, message: &str, at_mobiles: Option<Vec<String>>, at_user_ids: Option<Vec<String>>) -> Result<()> {
+        let at = DingTalkAt {
+            at_mobiles: at_mobiles.unwrap_or_default(),
+            at_user_ids: at_user_ids.unwrap_or_default(),
+            is_at_all: false,
+        };
+
+        let payload = DingTalkMessage {
+            msgtype: "text".to_string(),
+            text: DingTalkText {
+                content: message.to_string(),
+            },
+            at,
+        };
+        
+        self.send_message(&payload).await
+    }
+
+    /// 发送报名通知给管理员
+    pub async fn send_registration_notification(
+        &self,
+        user_name: &str,
+        registration_type: &str,
+        title: &str,
+        admin_webhook: &str,
+    ) -> Result<()> {
+        let content = format!(
+            "📝 新报名通知\n用户: {}\n类型: {}\n标题: {}\n\n请点击链接进行审核：{}",
+            user_name, registration_type, title, admin_webhook
+        );
+        
+        let message = DingTalkMessage {
+            msgtype: "text".to_string(),
+            text: DingTalkText { content },
+            at: DingTalkAt {
+                at_mobiles: vec![],
+                at_user_ids: vec![],
+                is_at_all: false,
+            },
+        };
+
+        self.send_message(&message).await
+    }
+
+    /// 发送报名状态更新通知
+    pub async fn send_registration_status_update(
+        &self,
+        user_name: &str,
+        title: &str,
+        status: &str,
+        notes: Option<&str>,
+    ) -> Result<()> {
+        let mut content = format!(
+            "📋 报名状态更新\n标题: {}\n状态: {}\n",
+            title, status
+        );
+        
+        if let Some(notes) = notes {
+            content.push_str(&format!("备注: {}", notes));
+        }
+
+        let message = DingTalkMessage {
+            msgtype: "text".to_string(),
+            text: DingTalkText { content },
+            at: DingTalkAt {
+                at_mobiles: vec![],
+                at_user_ids: vec![],
                 is_at_all: false,
             },
         };

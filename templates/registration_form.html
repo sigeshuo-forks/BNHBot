@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNHBot - 报名表单</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .form-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .form-title {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #1890ff;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        .submit-btn {
+            background: #1890ff;
+            color: white;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        .submit-btn:hover {
+            background: #40a9ff;
+        }
+        .submit-btn:disabled {
+            background: #d9d9d9;
+            cursor: not-allowed;
+        }
+        .success-message {
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #52c41a;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .error-message {
+            background: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #ff4d4f;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <h1 class="form-title">📝 报名表单</h1>
+        
+        <form id="registrationForm">
+            <div class="form-group">
+                <label for="registrationType">报名类型 *</label>
+                <select id="registrationType" name="registrationType" required>
+                    <option value="">请选择报名类型</option>
+                    <option value="exchange">交易所API绑定</option>
+                    <option value="event">活动报名</option>
+                    <option value="training">培训报名</option>
+                    <option value="other">其他</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="title">标题 *</label>
+                <input type="text" id="title" name="title" placeholder="请输入报名标题" required>
+            </div>
+
+            <div class="form-group">
+                <label for="content">详细内容 *</label>
+                <textarea id="content" name="content" placeholder="请详细描述您的需求或申请原因" required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="contactInfo">联系信息 *</label>
+                <input type="text" id="contactInfo" name="contactInfo" placeholder="请输入您的联系方式（手机号/邮箱/钉钉号）" required>
+            </div>
+
+            <button type="submit" class="submit-btn" id="submitBtn">
+                提交报名
+            </button>
+        </form>
+
+        <div id="message" style="display: none;"></div>
+    </div>
+
+    <script>
+        document.getElementById('registrationForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const messageDiv = document.getElementById('message');
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = '提交中...';
+            
+            const formData = new FormData(this);
+            const data = {
+                registration_type: formData.get('registrationType'),
+                title: formData.get('title'),
+                content: formData.get('content'),
+                contact_info: formData.get('contactInfo')
+            };
+
+            try {
+                const response = await fetch('/api/registration', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    messageDiv.className = 'success-message';
+                    messageDiv.textContent = '报名提交成功！我们会尽快审核并通知您结果。';
+                    document.getElementById('registrationForm').reset();
+                } else {
+                    messageDiv.className = 'error-message';
+                    messageDiv.textContent = result.error || '提交失败，请重试';
+                }
+            } catch (error) {
+                messageDiv.className = 'error-message';
+                messageDiv.textContent = '网络错误，请检查网络连接后重试';
+            } finally {
+                messageDiv.style.display = 'block';
+                submitBtn.disabled = false;
+                submitBtn.textContent = '提交报名';
+            }
+        });
+    </script>
+</body>
+</html>

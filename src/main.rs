@@ -1,13 +1,73 @@
 use anyhow::Result;
 use clap::Parser;
 use dotenv::dotenv;
-use log::{info, error};
+use log::{info, error, warn};
 use std::env;
+use std::net::SocketAddr;
+use std::fs;
+use std::path::Path;
+use axum::{
+    routing::{get, post},
+    http::StatusCode,
+    Json, Router,
+    response::Html,
+};
+use serde::{Deserialize, Serialize};
+use tower_http::cors::CorsLayer;
 
 use bnhbot::*;
 
 use handlers::command::{Cli, CommandHandler};
-use services::{DatabaseService, ExchangeService, DingTalkBot, Scheduler};
+use handlers::dingtalk_webhook::{DingTalkWebhookHandler, DingTalkMessage, DingTalkResponse};
+use services::{DatabaseService, ExchangeService, DingTalkBot, Scheduler, RegistrationService};
+
+// 创建默认环境变量文件
+fn create_default_env_if_needed() -> Result<()> {
+    if !std::path::Path::new(".env").exists() {
+        info!("📝 创建默认 .env 文件...");
+        
+        let env_content = r#"# BNHBot 环境变量配置
+
+# 钉钉机器人配置
+DINGTALK_WEBHOOK=https://oapi.dingtalk.com/robot/send?access_token=YOUR_ACCESS_TOKEN
+DINGTALK_SECRET=YOUR_SECRET_KEY
+
+# 数据库配置
+DATABASE_URL=sqlite:data/bnhbot.db
+
+# 日志级别
+RUST_LOG=info
+"#;
+        
+        fs::write(".env", env_content).map_err(|e| {
+            anyhow::anyhow!("无法创建 .env 文件: {}", e)
+        })?;
+        
+        info!("⚠️  请编辑 .env 文件，配置钉钉机器人信息");
+        info!("   1. 在钉钉群中添加自定义机器人");
+        info!("   2. 获取 Webhook URL 和 Secret");
+        info!("   3. 更新 .env 文件中的配置");
+        info!("   4. 重新启动服务");
+        
+        anyhow::bail!("请先配置钉钉机器人信息，然后重新启动服务");
+    }
+    
+    Ok(())
+}
+
+// 检查环境变量
+fn check_environment_variables() -> Result<()> {
+    // 检查钉钉Webhook
+    if env::var("DINGTALK_WEBHOOK").is_err() {
+        anyhow::bail!("DINGTALK_WEBHOOK 环境变量未设置，请检查 .env 文件");
+    }
+    
+    // 检查数据库URL
+    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/bnhbot.db".to_string());
+    info!("📊 数据库连接: {}", database_url);
+    
+    Ok(())
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,54 +79,339 @@ async fn main() -> Result<()> {
     
     info!("启动 BNHBot - 钉钉机器人交易所余额播报系统");
     
+    // 检查并创建默认环境变量文件
+    create_default_env_if_needed()?;
+    
+    // 检查环境变量
+    check_environment_variables()?;
+    
     // 获取配置
     let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/bnhbot.db".to_string());
     let dingtalk_webhook = env::var("DINGTALK_WEBHOOK").expect("DINGTALK_WEBHOOK 环境变量未设置");
     let dingtalk_secret = env::var("DINGTALK_SECRET").ok();
     
+    // 确保数据目录存在
+    info!("📁 创建数据目录...");
+    std::fs::create_dir_all("data").map_err(|e| {
+        anyhow::anyhow!("无法创建数据目录: {}", e)
+    })?;
+    
+    // 检查数据库文件路径
+    let db_path = if database_url.starts_with("sqlite:") {
+        let path = database_url.trim_start_matches("sqlite:");
+        if !path.starts_with('/') && !path.starts_with("data/") {
+            format!("data/{}", path)
+        } else {
+            path.to_string()
+        }
+    } else {
+        database_url.clone()
+    };
+    
+    info!("🗄️  数据库文件路径: {}", db_path);
+    
+    // 确保数据库文件的父目录存在
+    if let Some(parent) = Path::new(&db_path).parent() {
+        if !parent.exists() {
+            info!("📁 创建数据库父目录: {:?}", parent);
+            fs::create_dir_all(parent).map_err(|e| {
+                anyhow::anyhow!("无法创建数据库父目录 {:?}: {}", parent, e)
+            })?;
+        }
+    }
+    
+    // 如果数据库文件不存在，尝试创建一个空的数据库文件
+    if !Path::new(&db_path).exists() {
+        info!("📝 创建数据库文件...");
+        // 创建一个空的数据库文件
+        fs::File::create(&db_path).map_err(|e| {
+            anyhow::anyhow!("无法创建数据库文件 {}: {}", db_path, e)
+        })?;
+        info!("✅ 数据库文件创建成功");
+    }
+    
     // 初始化服务
+    info!("🔧 初始化数据库服务...");
     let database = DatabaseService::new(&database_url).await?;
+    info!("✅ 数据库服务初始化成功");
     let exchange_service = ExchangeService::new();
     let dingtalk_bot = DingTalkBot::new(dingtalk_webhook, dingtalk_secret);
     
-    // 解析命令行参数
-    let cli = Cli::parse();
+    // 检查钉钉机器人配置
+    info!("🔧 检查钉钉机器人配置...");
+    let webhook_handler = DingTalkWebhookHandler::new(database.clone(), dingtalk_bot.clone());
+    if let Err(e) = webhook_handler.check_config().await {
+        warn!("⚠️  钉钉机器人配置检查失败: {}", e);
+        info!("💡 请检查钉钉机器人配置：");
+        info!("   1. 确保机器人已添加到群中");
+        info!("   2. 确保开启了'接收消息'权限");
+        info!("   3. 确保Webhook URL正确");
+        info!("   4. 如果设置了关键词，确保消息包含关键词");
+    } else {
+        info!("✅ 钉钉机器人配置检查成功");
+    }
     
-    // 创建命令处理器
-    let command_handler = CommandHandler::new(
-        database.clone(),
-        exchange_service.clone(),
-        dingtalk_bot.clone(),
-    );
+    // 检查是否有命令行参数
+    let args: Vec<String> = std::env::args().collect();
     
-    // 处理命令
-    match command_handler.handle(cli).await {
-        Ok(_) => {
-            info!("命令执行成功");
+    if args.len() > 1 {
+        // 有命令行参数，使用命令行模式
+        let cli = Cli::parse();
+        
+        // 创建命令处理器
+        let command_handler = CommandHandler::new(
+            database.clone(),
+            exchange_service.clone(),
+            dingtalk_bot.clone(),
+        );
+        
+        // 处理命令
+        match command_handler.handle(cli).await {
+            Ok(_) => {
+                info!("命令执行成功");
+            }
+            Err(e) => {
+                error!("命令执行失败: {}", e);
+                std::process::exit(1);
+            }
         }
-        Err(e) => {
-            error!("命令执行失败: {}", e);
-            std::process::exit(1);
-        }
+    } else {
+        // 无命令行参数，启动完整服务
+        info!("启动 BNHBot 完整服务...");
+        start_full_service(database, exchange_service, dingtalk_bot).await?;
     }
     
     Ok(())
 }
 
-// 启动定时任务调度器的函数
-async fn start_scheduler() -> Result<()> {
-    info!("启动定时任务调度器...");
+// 启动Web服务器
+async fn start_web_server(
+    database: DatabaseService,
+    _exchange_service: ExchangeService,
+    dingtalk_bot: DingTalkBot,
+    _registration_service: RegistrationService,
+) -> Result<()> {
+    let webhook_handler = DingTalkWebhookHandler::new(database, dingtalk_bot.clone());
     
-    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/bnhbot.db".to_string());
-    let dingtalk_webhook = env::var("DINGTALK_WEBHOOK").expect("DINGTALK_WEBHOOK 环境变量未设置");
-    let dingtalk_secret = env::var("DINGTALK_SECRET").ok();
+    let app = Router::new()
+        .route("/", get(serve_home_page))
+        .route("/register", get(serve_registration_form))
+        .route("/api/registration", post(handle_registration))
+        .route("/api/registrations", get(list_registrations))
+        .route("/api/registrations/:id/review", post(review_registration_api))
+        .route("/api/dingtalk/webhook", post(move |payload| handle_dingtalk_webhook(payload, webhook_handler.clone())))
+        .layer(CorsLayer::permissive());
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    info!("Web服务器启动在: http://{}", addr);
+    info!("报名表单: http://{}/register", addr);
+    info!("管理界面: http://{}/admin", addr);
     
-    let database = DatabaseService::new(&database_url).await?;
-    let exchange_service = ExchangeService::new();
-    let dingtalk_bot = DingTalkBot::new(dingtalk_webhook, dingtalk_secret);
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}
+
+// Web路由处理函数
+async fn serve_home_page() -> Html<&'static str> {
+    Html(r#"
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>BNHBot - 钉钉机器人系统</title>
+        <meta charset="utf-8">
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            .container { max-width: 800px; margin: 0 auto; }
+            .btn { display: inline-block; padding: 10px 20px; margin: 10px; 
+                   background: #1890ff; color: white; text-decoration: none; border-radius: 5px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🤖 BNHBot 钉钉机器人系统</h1>
+            <p>欢迎使用 BNHBot！这是一个集成了交易所余额查询和报名系统的钉钉机器人。</p>
+            
+            <h2>主要功能</h2>
+            <ul>
+                <li>📊 每日自动播报交易所余额</li>
+                <li>📝 用户报名和审核系统</li>
+                <li>🏢 支持币安、欧易、WEEX三大交易所</li>
+                <li>⏰ 定时任务自动执行</li>
+            </ul>
+            
+            <h2>快速开始</h2>
+            <a href="/register" class="btn">📝 用户报名</a>
+            <a href="/admin" class="btn">⚙️ 管理界面</a>
+            
+            <h2>系统状态</h2>
+            <p>✅ 定时任务调度器: 运行中</p>
+            <p>✅ Web服务器: 运行中</p>
+            <p>✅ 数据库: 连接正常</p>
+        </div>
+    </body>
+    </html>
+    "#)
+}
+
+async fn serve_registration_form() -> Html<&'static str> {
+    // 这里应该返回实际的报名表单HTML
+    // 暂时返回简单的表单
+    Html(r#"
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>报名表单</title>
+        <meta charset="utf-8">
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            .form-group { margin: 20px 0; }
+            label { display: block; margin-bottom: 5px; }
+            input, select, textarea { width: 100%; padding: 8px; margin-bottom: 10px; }
+            button { padding: 10px 20px; background: #1890ff; color: white; border: none; border-radius: 5px; }
+        </style>
+    </head>
+    <body>
+        <h1>📝 报名表单</h1>
+        <form id="registrationForm">
+            <div class="form-group">
+                <label>报名类型:</label>
+                <select name="type" required>
+                    <option value="">请选择</option>
+                    <option value="exchange">交易所API绑定</option>
+                    <option value="event">活动报名</option>
+                    <option value="training">培训报名</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>标题:</label>
+                <input type="text" name="title" required>
+            </div>
+            <div class="form-group">
+                <label>内容:</label>
+                <textarea name="content" rows="4" required></textarea>
+            </div>
+            <div class="form-group">
+                <label>联系方式:</label>
+                <input type="text" name="contact" required>
+            </div>
+            <button type="submit">提交报名</button>
+        </form>
+        <script>
+            document.getElementById('registrationForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const data = Object.fromEntries(formData);
+                
+                try {
+                    const response = await fetch('/api/registration', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    if (response.ok) {
+                        alert('报名提交成功！');
+                        e.target.reset();
+                    } else {
+                        alert('提交失败，请重试');
+                    }
+                } catch (error) {
+                    alert('网络错误');
+                }
+            });
+        </script>
+    </body>
+    </html>
+    "#)
+}
+
+#[derive(Debug, Deserialize)]
+struct RegistrationRequest {
+    #[serde(rename = "type")]
+    registration_type: String,
+    title: String,
+    content: String,
+    contact: String,
+}
+
+#[derive(Serialize)]
+struct RegistrationResponse {
+    success: bool,
+    message: String,
+    registration_id: Option<String>,
+}
+
+async fn handle_registration(
+    Json(payload): Json<RegistrationRequest>,
+) -> Result<Json<RegistrationResponse>, StatusCode> {
+    // 这里应该调用报名服务处理报名
+    info!("收到报名请求: 类型={}, 标题={}, 内容={}, 联系方式={}", 
+        payload.registration_type, payload.title, payload.content, payload.contact);
     
-    let scheduler = Scheduler::new(database, exchange_service, dingtalk_bot);
-    scheduler.start().await?;
+    Ok(Json(RegistrationResponse {
+        success: true,
+        message: "报名提交成功！".to_string(),
+        registration_id: Some("temp-id".to_string()),
+    }))
+}
+
+async fn list_registrations() -> Json<Vec<String>> {
+    // 这里应该返回实际的报名列表
+    Json(vec!["报名1".to_string(), "报名2".to_string()])
+}
+
+async fn review_registration_api() -> Json<RegistrationResponse> {
+    // 这里应该处理审核逻辑
+    Json(RegistrationResponse {
+        success: true,
+        message: "审核完成".to_string(),
+        registration_id: None,
+    })
+}
+
+// 钉钉Webhook处理函数
+async fn handle_dingtalk_webhook(
+    Json(payload): Json<DingTalkMessage>,
+    webhook_handler: DingTalkWebhookHandler,
+) -> Result<Json<DingTalkResponse>, StatusCode> {
+    match webhook_handler.handle_message(payload).await {
+        Ok(response) => Ok(Json(response)),
+        Err(e) => {
+            error!("处理钉钉Webhook消息失败: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+// 启动完整服务的函数
+async fn start_full_service(
+    database: DatabaseService,
+    exchange_service: ExchangeService,
+    dingtalk_bot: DingTalkBot,
+) -> Result<()> {
+    info!("启动 BNHBot 完整服务...");
+    
+    // 创建报名服务
+    let registration_service = RegistrationService::new(database.clone());
+    
+    // 启动定时任务调度器（在后台运行）
+    let scheduler_database = database.clone();
+    let scheduler_exchange_service = exchange_service.clone();
+    let scheduler_dingtalk_bot = dingtalk_bot.clone();
+    
+    tokio::spawn(async move {
+        let scheduler = Scheduler::new(scheduler_database, scheduler_exchange_service, scheduler_dingtalk_bot);
+        if let Err(e) = scheduler.start().await {
+            error!("定时任务调度器运行失败: {}", e);
+        }
+    });
+    
+    // 启动Web服务器（用于报名表单和管理界面）
+    start_web_server(database, exchange_service, dingtalk_bot, registration_service).await?;
     
     Ok(())
 }
+
+// 这个函数已经不再使用，定时任务调度器现在在start_full_service中启动

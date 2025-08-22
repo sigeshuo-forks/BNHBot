@@ -115,6 +115,18 @@ rustup update
 rustup component add rustfmt clippy
 ```
 
+### 2. 一键启动
+```bash
+# 配置环境变量后，直接启动所有功能
+cargo run
+
+# 系统会自动启动：
+# - 定时任务调度器
+# - Web服务器（端口3000）
+# - 钉钉机器人服务
+# - 数据库服务
+```
+
 ### 2. 项目设置
 ```bash
 # 克隆项目后

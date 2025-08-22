@@ -1,4 +1,4 @@
-ca.PHONY: help build test clean setup run add-user add-exchange query-balance trigger-query start-scheduler
+ca.PHONY: help build test clean setup run add-user add-exchange query-balance trigger-query start-scheduler registration
 
 help: ## 显示帮助信息
 	@echo "BNHBot - 钉钉机器人交易所余额播报系统"
@@ -32,7 +32,14 @@ setup: ## 初始化项目
 	@cargo build
 	@echo "✅ 项目设置完成！"
 
-run: ## 运行项目（显示帮助）
+run: ## 启动完整服务
+	@echo "🚀 启动 BNHBot 完整服务..."
+	@echo "📁 确保数据目录存在..."
+	@mkdir -p data
+	@echo "🔧 启动服务..."
+	cargo run
+
+run-cli: ## 运行命令行模式
 	cargo run -- --help
 
 add-user: ## 添加用户示例
@@ -54,6 +61,14 @@ trigger-query: ## 手动触发余额查询
 
 start-scheduler: ## 启动定时任务
 	cargo run -- start-scheduler
+
+registration: ## 报名系统示例
+	@echo "报名系统使用示例:"
+	@echo "创建报名: cargo run -- registration create --dingtalk-id 'user123' --registration-type 'exchange' --title '申请绑定API' --content '需要绑定币安API' --contact-info '13800138000'"
+	@echo "查询报名: cargo run -- registration query --dingtalk-id 'user123'"
+	@echo "审核报名: cargo run -- registration review --registration-id 'uuid' --status 'approved' --admin-notes '审核通过' --admin-id 'admin-uuid'"
+	@echo "待审核列表: cargo run -- registration pending"
+	@echo "报名统计: cargo run -- registration stats"
 
 check: ## 检查代码
 	cargo check
