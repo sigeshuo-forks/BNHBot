@@ -1,7 +1,7 @@
 use crate::services::{DatabaseService, DingTalkBot};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use log::{info, error};
+use log::info;
 
 #[derive(Debug, Deserialize)]
 pub struct DingTalkMessage {

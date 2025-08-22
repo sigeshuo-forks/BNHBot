@@ -160,14 +160,14 @@ impl DingTalkBot {
     /// 发送报名通知给管理员
     pub async fn send_registration_notification(
         &self,
-        user_name: &str,
+        _user_name: &str,
         registration_type: &str,
         title: &str,
         admin_webhook: &str,
     ) -> Result<()> {
         let content = format!(
             "📝 新报名通知\n用户: {}\n类型: {}\n标题: {}\n\n请点击链接进行审核：{}",
-            user_name, registration_type, title, admin_webhook
+            _user_name, registration_type, title, admin_webhook
         );
         
         let message = DingTalkMessage {
@@ -186,14 +186,14 @@ impl DingTalkBot {
     /// 发送报名状态更新通知
     pub async fn send_registration_status_update(
         &self,
-        user_name: &str,
+        _user_name: &str,
         title: &str,
         status: &str,
         notes: Option<&str>,
     ) -> Result<()> {
         let mut content = format!(
-            "📋 报名状态更新\n标题: {}\n状态: {}\n",
-            title, status
+            "📋 报名状态更新\n用户: {}\n标题: {}\n状态: {}\n",
+            _user_name, title, status
         );
         
         if let Some(notes) = notes {

@@ -3,176 +3,286 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BNHBot - 报名表单</title>
+    <title>BNHBot 用户报名</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
             max-width: 600px;
             margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
         }
         .form-container {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .form-title {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 24px;
-            font-weight: 600;
+            padding: 40px;
         }
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
-        label {
+        .form-group label {
             display: block;
             margin-bottom: 8px;
-            color: #555;
-            font-weight: 500;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1em;
         }
-        input, select, textarea {
+        .form-group input, .form-group select {
             width: 100%;
-            padding: 12px;
+            padding: 15px;
             border: 2px solid #e1e5e9;
             border-radius: 8px;
             font-size: 16px;
-            transition: border-color 0.3s;
+            transition: all 0.3s ease;
             box-sizing: border-box;
         }
-        input:focus, select:focus, textarea:focus {
+        .form-group input:focus, .form-group select:focus {
             outline: none;
-            border-color: #1890ff;
-        }
-        textarea {
-            resize: vertical;
-            min-height: 100px;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
         .submit-btn {
-            background: #1890ff;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 14px 28px;
+            padding: 18px 40px;
             border: none;
             border-radius: 8px;
-            font-size: 16px;
-            font-weight: 500;
+            font-size: 18px;
+            font-weight: 600;
             cursor: pointer;
+            transition: all 0.3s ease;
             width: 100%;
-            transition: background-color 0.3s;
         }
         .submit-btn:hover {
-            background: #40a9ff;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
         }
         .submit-btn:disabled {
-            background: #d9d9d9;
+            opacity: 0.6;
             cursor: not-allowed;
+            transform: none;
         }
         .success-message {
-            background: #f6ffed;
-            border: 1px solid #b7eb8f;
-            color: #52c41a;
-            padding: 16px;
+            background: #d4edda;
+            color: #155724;
+            padding: 20px;
             border-radius: 8px;
-            margin-top: 20px;
+            margin-bottom: 20px;
             text-align: center;
+            display: none;
         }
         .error-message {
-            background: #fff2f0;
-            border: 1px solid #ffccc7;
-            color: #ff4d4f;
-            padding: 16px;
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
             border-radius: 8px;
-            margin-top: 20px;
+            margin-bottom: 20px;
             text-align: center;
+            display: none;
+        }
+        .exchange-info {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .exchange-info h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+        .exchange-info ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .exchange-info li {
+            margin-bottom: 5px;
+            color: #6c757d;
+        }
+        .required {
+            color: #dc3545;
+        }
+        .api-fields {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .api-fields h4 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .api-fields p {
+            margin: 5px 0;
+            color: #856404;
+            font-size: 0.9em;
         }
     </style>
 </head>
 <body>
-    <div class="form-container">
-        <h1 class="form-title">📝 报名表单</h1>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 BNHBot</h1>
+            <p>加入交易大赛，记录成长点滴</p>
+        </div>
         
-        <form id="registrationForm">
-            <div class="form-group">
-                <label for="registrationType">报名类型 *</label>
-                <select id="registrationType" name="registrationType" required>
-                    <option value="">请选择报名类型</option>
-                    <option value="exchange">交易所API绑定</option>
-                    <option value="event">活动报名</option>
-                    <option value="training">培训报名</option>
-                    <option value="other">其他</option>
-                </select>
+        <div class="form-container">
+            <div class="exchange-info">
+                <h3>📊 支持的交易所</h3>
+                <ul>
+                    <li><strong>币安 (Binance)</strong> - 全球最大的加密货币交易所</li>
+                    <li><strong>欧易 (OKX)</strong> - 专业的数字资产交易平台</li>
+                    <li><strong>WEEX</strong> - 新兴的加密货币交易所</li>
+                </ul>
             </div>
 
-            <div class="form-group">
-                <label for="title">标题 *</label>
-                <input type="text" id="title" name="title" placeholder="请输入报名标题" required>
+            <div class="api-fields">
+                <h4>🔑 API信息说明</h4>
+                <p><strong>币安 & WEEX:</strong> 需要 API Key 和 Secret Key</p>
+                <p><strong>欧易 (OKX):</strong> 需要 API Key、Secret Key 和 Passphrase</p>
+                <p><em>请确保您的API具有读取权限，我们不会进行任何交易操作</em></p>
             </div>
 
-            <div class="form-group">
-                <label for="content">详细内容 *</label>
-                <textarea id="content" name="content" placeholder="请详细描述您的需求或申请原因" required></textarea>
+            <form id="registrationForm">
+                <div class="form-group">
+                    <label for="exchange">选择交易所 <span class="required">*</span></label>
+                    <select id="exchange" name="exchange" required>
+                        <option value="">请选择交易所</option>
+                        <option value="binance">币安 (Binance)</option>
+                        <option value="okx">欧易 (OKX)</option>
+                        <option value="weex">WEEX</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="apiKey">API Key <span class="required">*</span></label>
+                    <input type="text" id="apiKey" name="apiKey" required placeholder="请输入您的API Key">
+                </div>
+
+                <div class="form-group">
+                    <label for="secretKey">Secret Key <span class="required">*</span></label>
+                    <input type="password" id="secretKey" name="secretKey" required placeholder="请输入您的Secret Key">
+                </div>
+
+                <div class="form-group" id="passphraseGroup" style="display: none;">
+                    <label for="passphrase">Passphrase <span class="required">*</span></label>
+                    <input type="password" id="passphrase" name="passphrase" placeholder="请输入您的Passphrase">
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    <span id="submitText">提交报名</span>
+                    <span id="loadingText" style="display: none;">提交中...</span>
+                </button>
+            </form>
+
+            <div class="success-message" id="successMessage">
+                <h3>✅ 报名成功！</h3>
+                <p>您的报名信息已提交，管理员会尽快审核。请保持关注！</p>
             </div>
 
-            <div class="form-group">
-                <label for="contactInfo">联系信息 *</label>
-                <input type="text" id="contactInfo" name="contactInfo" placeholder="请输入您的联系方式（手机号/邮箱/钉钉号）" required>
+            <div class="error-message" id="errorMessage">
+                <h3>❌ 报名失败</h3>
+                <p id="errorText">提交过程中出现错误，请重试。</p>
             </div>
-
-            <button type="submit" class="submit-btn" id="submitBtn">
-                提交报名
-            </button>
-        </form>
-
-        <div id="message" style="display: none;"></div>
+        </div>
     </div>
 
     <script>
+        // 交易所选择变化时显示/隐藏Passphrase字段
+        document.getElementById('exchange').addEventListener('change', function() {
+            const passphraseGroup = document.getElementById('passphraseGroup');
+            const passphraseInput = document.getElementById('passphrase');
+            
+            if (this.value === 'okx') {
+                passphraseGroup.style.display = 'block';
+                passphraseInput.required = true;
+            } else {
+                passphraseGroup.style.display = 'none';
+                passphraseInput.required = false;
+                passphraseInput.value = '';
+            }
+        });
+
+        // 表单提交处理
         document.getElementById('registrationForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const submitBtn = document.getElementById('submitBtn');
-            const messageDiv = document.getElementById('message');
+            const submitText = document.getElementById('submitText');
+            const loadingText = document.getElementById('loadingText');
+            const successMessage = document.getElementById('successMessage');
+            const errorMessage = document.getElementById('errorMessage');
             
+            // 显示加载状态
             submitBtn.disabled = true;
-            submitBtn.textContent = '提交中...';
+            submitText.style.display = 'none';
+            loadingText.style.display = 'inline';
             
-            const formData = new FormData(this);
-            const data = {
-                registration_type: formData.get('registrationType'),
-                title: formData.get('title'),
-                content: formData.get('content'),
-                contact_info: formData.get('contactInfo')
+            // 隐藏之前的消息
+            successMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+            
+            // 收集表单数据
+            const formData = {
+                exchange: document.getElementById('exchange').value,
+                api_key: document.getElementById('apiKey').value,
+                secret_key: document.getElementById('secretKey').value,
+                passphrase: document.getElementById('passphrase').value
             };
-
+            
             try {
-                const response = await fetch('/api/registration', {
+                const response = await fetch('/api/register', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(data)
+                    body: JSON.stringify(formData)
                 });
-
+                
                 const result = await response.json();
                 
                 if (response.ok) {
-                    messageDiv.className = 'success-message';
-                    messageDiv.textContent = '报名提交成功！我们会尽快审核并通知您结果。';
+                    // 成功
+                    successMessage.style.display = 'block';
                     document.getElementById('registrationForm').reset();
+                    document.getElementById('passphraseGroup').style.display = 'none';
                 } else {
-                    messageDiv.className = 'error-message';
-                    messageDiv.textContent = result.error || '提交失败，请重试';
+                    // 失败
+                    errorMessage.style.display = 'block';
+                    document.getElementById('errorText').textContent = result.message || '提交失败，请重试';
                 }
             } catch (error) {
-                messageDiv.className = 'error-message';
-                messageDiv.textContent = '网络错误，请检查网络连接后重试';
+                // 网络错误
+                errorMessage.style.display = 'block';
+                document.getElementById('errorText').textContent = '网络错误，请检查网络连接后重试';
             } finally {
-                messageDiv.style.display = 'block';
+                // 恢复按钮状态
                 submitBtn.disabled = false;
-                submitBtn.textContent = '提交报名';
+                submitText.style.display = 'inline';
+                loadingText.style.display = 'none';
             }
         });
     </script>

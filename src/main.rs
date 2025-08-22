@@ -12,7 +12,7 @@ use axum::{
     Json, Router,
     response::Html,
 };
-use serde::{Deserialize, Serialize};
+
 use tower_http::cors::CorsLayer;
 
 use bnhbot::*;
@@ -20,6 +20,7 @@ use bnhbot::*;
 use handlers::command::{Cli, CommandHandler};
 use handlers::dingtalk_webhook::{DingTalkWebhookHandler, DingTalkMessage, DingTalkResponse};
 use services::{DatabaseService, ExchangeService, DingTalkBot, Scheduler, RegistrationService};
+use models::registration::RegistrationResponse;
 use utils::dingtalk_check::DingTalkChecker;
 use utils::webhook_test::WebhookTester;
 
@@ -249,7 +250,7 @@ async fn start_web_server(
     database: DatabaseService,
     _exchange_service: ExchangeService,
     dingtalk_bot: DingTalkBot,
-    _registration_service: RegistrationService,
+    registration_service: RegistrationService,
     config: AppConfig,
 ) -> Result<()> {
             let webhook_handler = DingTalkWebhookHandler::new(database, dingtalk_bot.clone(), config.web_base_url.clone());
@@ -257,11 +258,12 @@ async fn start_web_server(
     let app = Router::new()
         .route("/", get(serve_home_page))
         .route("/register", get(serve_registration_form))
-        .route("/api/registration", post(handle_registration))
+        .route("/api/register", post(handlers::registration::handle_registration))
         .route("/api/registrations", get(list_registrations))
         .route("/api/registrations/:id/review", post(review_registration_api))
         .route("/api/dingtalk/webhook", post(move |payload| handle_dingtalk_webhook(payload, webhook_handler.clone())))
         .route("/api/dingtalk/test", get(serve_webhook_test_page))
+        .with_state(registration_service)
         .layer(CorsLayer::permissive());
 
     // 解析IP地址
@@ -329,107 +331,13 @@ async fn serve_home_page() -> Html<&'static str> {
     "#)
 }
 
-async fn serve_registration_form() -> Html<&'static str> {
-    // 这里应该返回实际的报名表单HTML
-    // 暂时返回简单的表单
-    Html(r#"
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>报名表单</title>
-        <meta charset="utf-8">
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            .form-group { margin: 20px 0; }
-            label { display: block; margin-bottom: 5px; }
-            input, select, textarea { width: 100%; padding: 8px; margin-bottom: 10px; }
-            button { padding: 10px 20px; background: #1890ff; color: white; border: none; border-radius: 5px; }
-        </style>
-    </head>
-    <body>
-        <h1>📝 报名表单</h1>
-        <form id="registrationForm">
-            <div class="form-group">
-                <label>报名类型:</label>
-                <select name="type" required>
-                    <option value="">请选择</option>
-                    <option value="exchange">交易所API绑定</option>
-                    <option value="event">活动报名</option>
-                    <option value="training">培训报名</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>标题:</label>
-                <input type="text" name="title" required>
-            </div>
-            <div class="form-group">
-                <label>内容:</label>
-                <textarea name="content" rows="4" required></textarea>
-            </div>
-            <div class="form-group">
-                <label>联系方式:</label>
-                <input type="text" name="contact" required>
-            </div>
-            <button type="submit">提交报名</button>
-        </form>
-        <script>
-            document.getElementById('registrationForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                const data = Object.fromEntries(formData);
-                
-                try {
-                    const response = await fetch('/api/registration', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    
-                    if (response.ok) {
-                        alert('报名提交成功！');
-                        e.target.reset();
-                    } else {
-                        alert('提交失败，请重试');
-                    }
-                } catch (error) {
-                    alert('网络错误');
-                }
-            });
-        </script>
-    </body>
-    </html>
-    "#)
+async fn serve_registration_form() -> Html<String> {
+    // 读取简化的报名表单HTML文件
+    let html_content = include_str!("../templates/registration_form.html");
+    Html(html_content.to_string())
 }
 
-#[derive(Debug, Deserialize)]
-struct RegistrationRequest {
-    #[serde(rename = "type")]
-    registration_type: String,
-    title: String,
-    content: String,
-    contact: String,
-}
 
-#[derive(Serialize)]
-struct RegistrationResponse {
-    success: bool,
-    message: String,
-    registration_id: Option<String>,
-}
-
-async fn handle_registration(
-    Json(payload): Json<RegistrationRequest>,
-) -> Result<Json<RegistrationResponse>, StatusCode> {
-    // 这里应该调用报名服务处理报名
-    info!("收到报名请求: 类型={}, 标题={}, 内容={}, 联系方式={}", 
-        payload.registration_type, payload.title, payload.content, payload.contact);
-    
-    Ok(Json(RegistrationResponse {
-        success: true,
-        message: "报名提交成功！".to_string(),
-        registration_id: Some("temp-id".to_string()),
-    }))
-}
 
 async fn list_registrations() -> Json<Vec<String>> {
     // 这里应该返回实际的报名列表

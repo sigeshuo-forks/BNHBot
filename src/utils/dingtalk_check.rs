@@ -32,7 +32,7 @@ impl DingTalkChecker {
     }
     
     /// 验证签名是否正确
-    pub fn verify_signature(webhook_url: &str, secret: &str, timestamp: i64, signature: &str) -> bool {
+    pub fn verify_signature(_webhook_url: &str, secret: &str, timestamp: i64, signature: &str) -> bool {
         let string_to_sign = format!("{}\n{}", timestamp, secret);
         let expected_signature = hmac_sha256_base64(&string_to_sign, secret);
         
