@@ -21,6 +21,7 @@ use handlers::command::{Cli, CommandHandler};
 use handlers::dingtalk_webhook::{DingTalkWebhookHandler, DingTalkMessage, DingTalkResponse};
 use services::{DatabaseService, ExchangeService, DingTalkBot, Scheduler, RegistrationService};
 use utils::dingtalk_check::DingTalkChecker;
+use utils::webhook_test::WebhookTester;
 
 // 创建默认环境变量文件
 fn create_default_env_if_needed() -> Result<()> {
@@ -221,12 +222,14 @@ async fn start_web_server(
         .route("/api/registrations", get(list_registrations))
         .route("/api/registrations/:id/review", post(review_registration_api))
         .route("/api/dingtalk/webhook", post(move |payload| handle_dingtalk_webhook(payload, webhook_handler.clone())))
+        .route("/api/dingtalk/test", get(serve_webhook_test_page))
         .layer(CorsLayer::permissive());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     info!("Web服务器启动在: http://{}", addr);
     info!("报名表单: http://{}/register", addr);
     info!("管理界面: http://{}/admin", addr);
+    info!("Webhook测试: http://{}/api/dingtalk/test", addr);
     
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
@@ -265,6 +268,7 @@ async fn serve_home_page() -> Html<&'static str> {
             <h2>快速开始</h2>
             <a href="/register" class="btn">📝 用户报名</a>
             <a href="/admin" class="btn">⚙️ 管理界面</a>
+            <a href="/api/dingtalk/test" class="btn">🔧 Webhook测试</a>
             
             <h2>系统状态</h2>
             <p>✅ 定时任务调度器: 运行中</p>
@@ -404,6 +408,83 @@ async fn handle_dingtalk_webhook(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+// Webhook测试页面
+async fn serve_webhook_test_page() -> Html<String> {
+    let webhook_url = "http://localhost:3000/api/dingtalk/webhook";
+    let curl_commands = WebhookTester::generate_curl_commands(webhook_url);
+    
+    let html_content = format!(
+        r#"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>钉钉Webhook测试</title>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; }}
+                .container {{ max-width: 1000px; margin: 0 auto; }}
+                .test-section {{ margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }}
+                .curl-command {{ background: #f5f5f5; padding: 15px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; }}
+                .info-box {{ background: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+                .warning-box {{ background: #fff3e0; padding: 15px; border-radius: 5px; margin: 20px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🔧 钉钉Webhook测试工具</h1>
+                
+                <div class="info-box">
+                    <h3>📋 测试说明</h3>
+                    <p>使用以下curl命令测试钉钉Webhook是否正常工作。如果机器人能正确回复，说明Webhook配置正确。</p>
+                </div>
+                
+                <div class="warning-box">
+                    <h3>⚠️  重要提醒</h3>
+                    <p>钉钉机器人默认<strong>不能接收群消息</strong>，只能通过以下方式触发：</p>
+                    <ul>
+                        <li>在钉钉机器人设置中添加关键词（如"报名"）</li>
+                        <li>用户发送包含关键词的消息时，钉钉会调用Webhook</li>
+                        <li>或者使用钉钉开放平台API（需要企业认证）</li>
+                    </ul>
+                </div>
+                
+                <div class="test-section">
+                    <h3>🧪 测试命令</h3>
+                    <p>复制以下命令到终端执行：</p>
+                    {}
+                </div>
+                
+                <div class="test-section">
+                    <h3>📱 钉钉机器人配置步骤</h3>
+                    <ol>
+                        <li>进入钉钉群 → 群设置 → 机器人管理</li>
+                        <li>选择你的机器人 → 设置</li>
+                        <li>在"关键词"中添加：<code>报名</code></li>
+                        <li>保存设置</li>
+                        <li>在群中发送包含"报名"的消息</li>
+                    </ol>
+                </div>
+                
+                <div class="test-section">
+                    <h3>🔍 故障排查</h3>
+                    <ul>
+                        <li>检查机器人是否在群中</li>
+                        <li>检查是否设置了关键词</li>
+                        <li>检查Webhook URL是否正确</li>
+                        <li>检查签名配置是否正确</li>
+                        <li>查看服务日志输出</li>
+                    </ul>
+                </div>
+            </div>
+        </body>
+        </html>
+        "#,
+        curl_commands.join("\n\n")
+    );
+    
+    Html(html_content)
 }
 
 // 启动完整服务的函数
