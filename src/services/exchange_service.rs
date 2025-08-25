@@ -4,6 +4,7 @@ use anyhow::Result;
 use reqwest::Client;
 use rust_decimal::Decimal;
 use std::time::Duration;
+use base64::Engine;
 
 #[derive(Clone)]
 pub struct ExchangeService {
@@ -82,12 +83,18 @@ impl ExchangeService {
     }
 
     async fn get_binance_summary(&self, user_exchange: &UserExchange) -> Result<AccountSummary> {
-        // 币安没有直接的总USDT估值API，需要通过价格API计算
         let balances = self.get_binance_balance(user_exchange).await?;
         
-        // 暂时返回0作为总估值，后续可以集成价格API
+        // 计算USDT总估值
+        let mut total_usdt_value = Decimal::ZERO;
+        
+        for balance in &balances {
+            let estimated_usdt = self.get_usdt_value(&balance.asset, balance.total).await;
+            total_usdt_value += estimated_usdt;
+        }
+        
         Ok(AccountSummary {
-            total_usdt_value: Decimal::ZERO,
+            total_usdt_value,
             balances,
         })
     }
@@ -241,42 +248,60 @@ impl ExchangeService {
     }
 
     async fn get_weex_balance(&self, user_exchange: &UserExchange) -> Result<Vec<ExchangeBalance>> {
-        let url = "https://api.weex.com/v1/account";
+        // 根据官方文档使用正确的API端点
+        let url = "https://contract-openapi.weex.com/api/spot/v1/account/assets";
         let timestamp = chrono::Utc::now().timestamp_millis();
+        let method = "GET";
+        let path = "/api/spot/v1/account/assets";
         
-        let signature = self.generate_weex_signature(
-            &format!("timestamp={}", timestamp),
-            &user_exchange.secret_key,
-        );
+        // WEEX签名算法：根据官方文档
+        // timestamp + method.toUpperCase() + requestPath + queryString
+        // 对于GET请求，queryString为空字符串
+        let query_string = "";
+        let sign_string = format!("{}{}{}{}", timestamp, method.to_uppercase(), path, query_string);
+        let signature = self.generate_weex_signature(&sign_string, &user_exchange.secret_key);
+
+        log::info!("WEEX API调试信息:");
+        log::info!("  URL: {}", url);
+        log::info!("  时间戳: {}", timestamp);
+        log::info!("  签名字符串: '{}'", sign_string);
+        log::info!("  API Key: {}", &user_exchange.api_key);
+        log::info!("  签名结果: {}", &signature);
+        log::info!("  Passphrase: {}", &user_exchange.passphrase.as_deref().unwrap_or(""));
 
         let response = self.client
             .get(url)
-            .header("X-WEEX-APIKEY", &user_exchange.api_key)
-            .header("X-WEEX-SIGNATURE", &signature)
-            .header("X-WEEX-TIMESTAMP", &timestamp.to_string())
+            .header("ACCESS-KEY", &user_exchange.api_key)
+            .header("ACCESS-SIGN", &signature)
+            .header("ACCESS-PASSPHRASE", user_exchange.passphrase.as_deref().unwrap_or(""))
+            .header("ACCESS-TIMESTAMP", &timestamp.to_string())
+            .header("Content-Type", "application/json")
+            .header("User-Agent", "BNHBot/1.0")
             .send()
             .await?;
 
-        if !response.status().is_success() {
-            anyhow::bail!("WEEX API调用失败: {}", response.status());
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            anyhow::bail!("WEEX API调用失败: {} - {}", status, error_text);
         }
 
         let account_info: WeexAccountInfo = response.json().await?;
         
-        if account_info.code != 0 {
+        if account_info.code != "00000" {
             anyhow::bail!("WEEX API返回错误: {}", account_info.msg);
         }
 
-        let balances: Vec<ExchangeBalance> = account_info.data.balances
+        let balances: Vec<ExchangeBalance> = account_info.data
             .into_iter()
             .filter_map(|b| {
-                let free: Decimal = b.free.parse().ok()?;
-                let locked: Decimal = b.locked.parse().ok()?;
-                let total: Decimal = b.total.parse().ok()?;
+                let free: Decimal = b.available.parse().ok()?;
+                let locked: Decimal = b.frozen.parse().ok()?;
+                let total: Decimal = b.equity.parse().ok()?;
                 
                 if total > Decimal::ZERO {
                     Some(ExchangeBalance {
-                        asset: b.asset,
+                        asset: b.coin_name,
                         free,
                         locked,
                         total,
@@ -292,14 +317,81 @@ impl ExchangeService {
     }
 
     async fn get_weex_summary(&self, user_exchange: &UserExchange) -> Result<AccountSummary> {
-        // WEEX没有直接的总USDT估值API，需要通过价格API计算
         let balances = self.get_weex_balance(user_exchange).await?;
         
-        // 暂时返回0作为总估值，后续可以集成价格API
+        // 计算USDT总估值
+        let mut total_usdt_value = Decimal::ZERO;
+        
+        for balance in &balances {
+            if balance.asset == "USDT" {
+                // USDT直接计算
+                total_usdt_value += balance.total;
+            } else {
+                // 其他币种暂时使用简单估值，后续可以集成实时价格API
+                // 这里可以添加价格查询逻辑
+                let estimated_usdt = self.get_usdt_value(&balance.asset, balance.total).await;
+                total_usdt_value += estimated_usdt;
+            }
+        }
+        
         Ok(AccountSummary {
-            total_usdt_value: Decimal::ZERO,
+            total_usdt_value,
             balances,
         })
+    }
+
+    // 获取币种的USDT估值（通过币安价格API）
+    async fn get_usdt_value(&self, asset: &str, amount: Decimal) -> Decimal {
+        if amount == Decimal::ZERO {
+            return Decimal::ZERO;
+        }
+
+        // USDT直接返回
+        if asset == "USDT" {
+            return amount;
+        }
+
+        // 通过币安价格API获取实时价格
+        match self.get_binance_price(asset).await {
+            Ok(price) => amount * price,
+            Err(_) => {
+                // 如果获取价格失败，使用备用静态价格
+                log::warn!("获取{}价格失败，使用备用价格", asset);
+                let fallback_price = match asset {
+                    "BTC" => Decimal::from(100000),
+                    "ETH" => Decimal::from(4000),
+                    "BNB" => Decimal::from(600),
+                    "SOL" => Decimal::from(200),
+                    "DOGE" => Decimal::new(3, 1), // 0.3
+                    _ => Decimal::ZERO,
+                };
+                amount * fallback_price
+            }
+        }
+    }
+
+    // 通过币安API获取币种USDT价格
+    async fn get_binance_price(&self, asset: &str) -> Result<Decimal> {
+        let symbol = format!("{}USDT", asset);
+        let url = format!("https://api.binance.com/api/v3/ticker/price?symbol={}", symbol);
+        
+        let response = self.client
+            .get(&url)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("币安价格API调用失败: {}", response.status());
+        }
+
+        let price_data: serde_json::Value = response.json().await?;
+        let price_str = price_data["price"].as_str()
+            .ok_or_else(|| anyhow::anyhow!("价格数据格式错误"))?;
+        
+        let price: Decimal = price_str.parse()
+            .map_err(|_| anyhow::anyhow!("价格解析失败: {}", price_str))?;
+
+        Ok(price)
     }
 
     fn generate_binance_signature(&self, query_string: &str, secret_key: &str) -> String {
@@ -334,6 +426,7 @@ impl ExchangeService {
             .expect("HMAC can take key of any size");
         mac.update(message.as_bytes());
         
-        hex::encode(mac.finalize().into_bytes())
+        // WEEX使用Base64编码，不是hex编码
+        base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes())
     }
 }

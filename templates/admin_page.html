@@ -421,7 +421,7 @@
                     <option value="">全部交易所</option>
                     <option value="binance">币安</option>
                     <option value="okx">欧易</option>
-                    <option value="weex">WEEX</option>
+                    <option value="weex">WEEX (已停用)</option>
                 </select>
                 <button class="btn btn-primary" onclick="loadRegistrations()">🔍 搜索</button>
             </div>
@@ -1031,7 +1031,7 @@
             const names = {
                 'binance': '币安',
                 'okx': '欧易',
-                'weex': 'WEEX'
+                'weex': 'WEEX (已停用)'
             };
             return names[exchange.toLowerCase()] || exchange;
         }

@@ -165,13 +165,13 @@
                 <ul>
                     <li><strong>币安 (Binance)</strong> - 全球最大的加密货币交易所</li>
                     <li><strong>欧易 (OKX)</strong> - 专业的数字资产交易平台</li>
-                    <li><strong>WEEX</strong> - 新兴的加密货币交易所</li>
+                    <li><strong>WEEX</strong> - ❌ <span style="color: #dc3545;">暂不支持（API服务已关闭）</span></li>
                 </ul>
             </div>
 
             <div class="api-fields">
                 <h4>🔑 API信息说明</h4>
-                <p><strong>币安 & WEEX:</strong> 需要 API Key 和 Secret Key</p>
+                <p><strong>币安 (Binance):</strong> 需要 API Key 和 Secret Key</p>
                 <p><strong>欧易 (OKX):</strong> 需要 API Key、Secret Key 和 Passphrase</p>
                 <p><em>请确保您的API具有读取权限，我们不会进行任何交易操作</em></p>
             </div>
@@ -191,7 +191,7 @@
                             <option value="">请选择交易所</option>
                             <option value="binance">币安 (Binance)</option>
                             <option value="okx">欧易 (OKX)</option>
-                            <option value="weex">WEEX</option>
+                            <option value="weex" disabled style="color: #6c757d;">WEEX (暂不支持)</option>
                         </select>
                     </div>
 
@@ -218,7 +218,7 @@
 
             <div class="success-message" id="successMessage">
                 <h3>✅ 报名成功！</h3>
-                <p>您的报名信息已提交，管理员会尽快审核。请保持关注！</p>
+                <p>您的报名信息已提交，请在钉钉群中@西柚或者进行私聊进行审核。请保持关注！关闭页面即可。</p>
             </div>
 
             <div class="error-message" id="errorMessage">
@@ -234,6 +234,20 @@
             const passphraseGroup = document.getElementById('passphraseGroup');
             const passphraseInput = document.getElementById('passphrase');
             
+            // 检查是否选择了WEEX
+            if (this.value === 'weex') {
+                // 显示WEEX不支持的提示
+                alert('⚠️ WEEX交易所提示\n\nWEEX交易所已关闭API访问服务，暂时无法支持。\n\n请选择币安(Binance)或欧易(OKX)交易所进行报名。\n\n感谢您的理解！');
+                
+                // 重置选择
+                this.value = '';
+                passphraseGroup.style.display = 'none';
+                passphraseInput.required = false;
+                passphraseInput.value = '';
+                return;
+            }
+            
+            // OKX需要Passphrase
             if (this.value === 'okx') {
                 passphraseGroup.style.display = 'block';
                 passphraseInput.required = true;

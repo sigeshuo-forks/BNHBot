@@ -57,27 +57,25 @@ pub struct OkxBalanceDetail {
     pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
-// WEEX API响应结构
+// WEEX API响应结构 (V2)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeexAccountInfo {
-    pub code: i32,
+    pub code: String,
     pub msg: String,
-    pub data: WeexAccountData,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WeexAccountData {
-    pub accountId: String,
-    pub accountType: String,
-    pub balances: Vec<WeexBalance>,
+    #[serde(rename = "requestTime")]
+    pub request_time: i64,
+    pub data: Vec<WeexBalance>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeexBalance {
-    pub asset: String,
-    pub free: String,
-    pub locked: String,
-    pub total: String,
+    #[serde(rename = "coinId")]
+    pub coin_id: i32,
+    #[serde(rename = "coinName")]
+    pub coin_name: String,
+    pub available: String,
+    pub frozen: String,
+    pub equity: String,
 }
 
 // 通用余额结构
