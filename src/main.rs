@@ -20,7 +20,7 @@ use bnhbot::middleware::{security_headers_middleware, admin_auth_middleware};
 
 use handlers::command::{Cli, CommandHandler};
 use handlers::dingtalk_webhook::{DingTalkWebhookHandler, DingTalkMessage, DingTalkResponse};
-use services::{DatabaseService, ExchangeService, DingTalkBot, Scheduler, RegistrationService, AuthService};
+use services::{DatabaseService, ExchangeService, DingTalkBot, Scheduler, RegistrationService, AuthService, RankingService};
 use models::registration::RegistrationResponse;
 use utils::dingtalk_check::DingTalkChecker;
 use utils::webhook_test::WebhookTester;
@@ -263,23 +263,37 @@ async fn start_web_server(
     dingtalk_bot: DingTalkBot,
     registration_service: RegistrationService,
     auth_service: AuthService,
+    ranking_service: RankingService,
     config: AppConfig,
 ) -> Result<()> {
             let webhook_handler = DingTalkWebhookHandler::new(database, dingtalk_bot.clone(), config.web_base_url.clone());
     
-            // 公开路由（无需认证）
-        let public_routes = Router::new()
+            // 基础公开路由
+        let basic_routes = Router::new()
             .route("/", get(serve_home_page))
             .route("/register", get(serve_registration_form))
+            .route("/rankings", get(serve_ranking_page))
             .route("/admin/login", get(serve_admin_login_page))
             .route("/api/register", post(handlers::registration::handle_registration))
+            .route("/api/mock-mode", get(handlers::mock_mode::get_mock_mode_public))
             .route("/api/admin/login", post(handlers::admin::admin_login))
             .route("/api/dingtalk/webhook", post(move |payload| handle_dingtalk_webhook(payload, webhook_handler.clone())))
             .route("/api/dingtalk/test", get(serve_webhook_test_page))
             .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone()));
 
-        // 需要认证的管理API路由（不包括页面）
-        let admin_api_routes = Router::new()
+        // 排名相关的公开路由
+        let ranking_routes = Router::new()
+            .route("/api/rankings", get(handlers::ranking::get_rankings))
+            .route("/api/rankings/period", get(handlers::ranking::get_period_rankings))
+            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone(), ranking_service.clone()));
+
+        // Mock数据路由（用于演示）
+        let mock_routes = Router::new()
+            .route("/api/mock/rankings", get(handlers::mock_ranking::get_mock_rankings))
+            .route("/api/mock/rankings/period", get(handlers::mock_ranking::get_mock_period_rankings));
+
+        // 基础管理API路由
+        let basic_admin_routes = Router::new()
             .route("/api/admin/registrations", get(handlers::admin::get_all_registrations))
             .route("/api/admin/stats", get(handlers::admin::get_registration_stats))
             .route("/api/admin/registrations/:id/review", post(handlers::admin::review_registration))
@@ -287,9 +301,17 @@ async fn start_web_server(
             .route("/api/admin/registrations/:id/balance", get(handlers::admin::get_registration_balance))
             .route("/api/admin/registrations/:id/test-balance", get(handlers::admin::test_registration_balance))
             .route("/api/admin/registrations/:id/summary", get(handlers::admin_summary::get_registration_summary))
+            .route("/api/admin/mock-mode", get(handlers::mock_mode::get_mock_mode))
+            .route("/api/admin/mock-mode", post(handlers::mock_mode::set_mock_mode))
             .route("/api/registrations", get(list_registrations))
             .route("/api/registrations/:id/review", post(review_registration_api))
             .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone()))
+            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+
+        // 排名相关的管理API路由
+        let ranking_admin_routes = Router::new()
+            .route("/api/admin/collect-balances", post(handlers::ranking::trigger_balance_collection))
+            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone(), ranking_service.clone()))
             .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
 
         // 管理页面路由（不需要服务器端认证，由前端JavaScript处理）
@@ -298,8 +320,11 @@ async fn start_web_server(
             .with_state((registration_service, auth_service, exchange_service));
 
         let app = Router::new()
-            .merge(public_routes)
-            .merge(admin_api_routes)
+            .merge(basic_routes)
+            .merge(ranking_routes)
+            .merge(mock_routes)
+            .merge(basic_admin_routes)
+            .merge(ranking_admin_routes)
             .merge(admin_page_routes)
             .layer(axum::middleware::from_fn(security_headers_middleware))
             .layer(CorsLayer::permissive());
@@ -318,6 +343,7 @@ async fn start_web_server(
     info!("Web服务器启动在: {}", config.web_base_url);
     info!("报名表单: {}/register", config.web_base_url);
     info!("管理界面: {}/admin", config.web_base_url);
+    info!("排名页面: {}/rankings", config.web_base_url);
     info!("Webhook测试: {}/api/dingtalk/test", config.web_base_url);
     
     let listener = tokio::net::TcpListener::bind(&addr).await?;
@@ -372,6 +398,12 @@ async fn serve_home_page() -> Html<&'static str> {
 async fn serve_registration_form() -> Html<String> {
     // 读取简化的报名表单HTML文件
     let html_content = include_str!("../templates/registration_form.html");
+    Html(html_content.to_string())
+}
+
+async fn serve_ranking_page() -> Html<String> {
+    // 读取排名页面HTML文件
+    let html_content = include_str!("../templates/ranking_page.html");
     Html(html_content.to_string())
 }
 
@@ -508,20 +540,24 @@ async fn start_full_service(
     // 创建报名服务
     let registration_service = RegistrationService::new(database.clone());
     
+    // 创建排名服务
+    let ranking_service = RankingService::new(database.clone(), exchange_service.clone());
+    
     // 启动定时任务调度器（在后台运行）
     let scheduler_database = database.clone();
     let scheduler_exchange_service = exchange_service.clone();
     let scheduler_dingtalk_bot = dingtalk_bot.clone();
+    let scheduler_ranking_service = ranking_service.clone();
     
     tokio::spawn(async move {
-        let scheduler = Scheduler::new(scheduler_database, scheduler_exchange_service, scheduler_dingtalk_bot);
+        let scheduler = Scheduler::new(scheduler_database, scheduler_exchange_service, scheduler_dingtalk_bot, scheduler_ranking_service);
         if let Err(e) = scheduler.start().await {
             error!("定时任务调度器运行失败: {}", e);
         }
     });
     
     // 启动Web服务器（用于报名表单和管理界面）
-    start_web_server(database, exchange_service, dingtalk_bot, registration_service, auth_service, config.clone()).await?;
+    start_web_server(database, exchange_service, dingtalk_bot, registration_service, auth_service, ranking_service, config.clone()).await?;
     
     Ok(())
 }

@@ -4,6 +4,7 @@ pub mod scheduler;
 pub mod database;
 pub mod registration;
 pub mod auth;
+pub mod ranking_service;
 
 pub use dingtalk::*;
 pub use exchange_service::*;
@@ -11,3 +12,4 @@ pub use scheduler::*;
 pub use database::*;
 pub use registration::*;
 pub use auth::*;
+pub use ranking_service::*;

@@ -303,6 +303,7 @@ dependencies = [
  "hex",
  "hmac",
  "jsonwebtoken",
+ "lazy_static",
  "log",
  "reqwest",
  "rust_decimal",

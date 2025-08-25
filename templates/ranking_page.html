@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BNHBot 交易大赛排名榜</title>
+    <!-- 不再使用Chart.js，改用原生JavaScript绘制图表 -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            border: none;
+            background: none;
+            font-size: 16px;
+        }
+        
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .tab:hover:not(.active) {
+            background: #e9ecef;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #6c757d;
+        }
+        
+        .ranking-item {
+            background: #f8f9fa;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .ranking-item:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.15);
+        }
+        
+        .ranking-header {
+            padding: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .ranking-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .rank-badge {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            color: white;
+        }
+        
+        .rank-1 { background: linear-gradient(135deg, #FFD700, #FFA500); }
+        .rank-2 { background: linear-gradient(135deg, #C0C0C0, #A9A9A9); }
+        .rank-3 { background: linear-gradient(135deg, #CD7F32, #B8860B); }
+        .rank-other { background: linear-gradient(135deg, #667eea, #764ba2); }
+        
+        .user-info h3 {
+            margin-bottom: 5px;
+            color: #333;
+        }
+        
+        .user-info p {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        .ranking-right {
+            text-align: right;
+        }
+        
+        .percentage-main {
+            font-size: 1.8em;
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .balance-secondary {
+            font-size: 1.1em;
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .balance-secondary small {
+            font-size: 0.85em;
+            color: #868e96;
+            margin-left: 5px;
+        }
+
+        .balance {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .change {
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .change.positive {
+            color: #28a745;
+        }
+        
+        .change.negative {
+            color: #dc3545;
+        }
+        
+        .badges {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .badge.doubled {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+        }
+        
+        .badge.top3 {
+            background: linear-gradient(135deg, #feca57, #ff9ff3);
+            color: white;
+        }
+        
+        .ranking-details {
+            padding: 0 20px 20px;
+            display: none;
+            border-top: 1px solid #e9ecef;
+            background: white;
+        }
+        
+        .ranking-details.show {
+            display: block;
+        }
+        
+        .user-details {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: #495057;
+            font-size: 0.9em;
+        }
+
+        .detail-value {
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .detail-value.positive {
+            color: #28a745;
+        }
+
+        .detail-value.negative {
+            color: #dc3545;
+        }
+
+        .chart-container {
+            margin-top: 20px;
+            height: 300px;
+            position: relative;
+            padding: 20px;
+        }
+
+        .chart-container h4 {
+            margin: 0 0 15px 0;
+            color: #495057;
+            font-size: 1.1em;
+        }
+        
+        .expand-icon {
+            transition: transform 0.3s ease;
+            color: #667eea;
+        }
+        
+        .expand-icon.rotated {
+            transform: rotate(180deg);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        .refresh-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 50px;
+            color: #6c757d;
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .ranking-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .ranking-right {
+                text-align: center;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏆 交易大赛排名榜</h1>
+            <p>实时追踪参赛选手的账户表现</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" data-period="daily">📊 日排名</button>
+            <button class="tab" data-period="weekly">📈 周排名</button>
+            <button class="tab" data-period="monthly">📅 月排名</button>
+        </div>
+        
+        <div class="content">
+            <div style="margin-bottom: 20px;">
+                <button class="refresh-btn" onclick="refreshRankings()">🔄 刷新数据</button>
+                <button class="refresh-btn" onclick="testChart()" style="margin-left: 10px; background: #28a745;">🧪 测试图表</button>
+            </div>
+            
+            <div class="search-container" style="margin-bottom: 20px;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="text" id="searchInput" placeholder="🔍 搜索用户名或ID查看排名..." 
+                           style="flex: 1; padding: 10px; border: 2px solid #e9ecef; border-radius: 8px; font-size: 14px;">
+                    <button class="refresh-btn" onclick="searchUser()" style="background: #17a2b8;">🔍 搜索</button>
+                    <button class="refresh-btn" onclick="clearSearch()" style="background: #6c757d;">✖️ 清除</button>
+                </div>
+                <div id="searchResult" style="margin-top: 10px; display: none;"></div>
+            </div>
+            
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalParticipants">-</div>
+                    <div class="stat-label">参赛人数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalValue">-</div>
+                    <div class="stat-label">总资产价值</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="topGainer">-</div>
+                    <div class="stat-label">最大涨幅</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="lastUpdated">-</div>
+                    <div class="stat-label">最后更新</div>
+                </div>
+            </div>
+            
+            <div class="loading" id="loading">
+                <p>🔄 加载排名数据中...</p>
+            </div>
+            
+            <div class="empty-state" id="emptyState" style="display: none;">
+                <h3>📊 暂无排名数据</h3>
+                <p>请等待系统收集用户余额数据</p>
+            </div>
+            
+            <div id="rankingList"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentPeriod = 'daily';
+        let rankingsData = null;
+
+        // 检查原生图表功能
+        function checkChartJS() {
+            console.log('✅ 使用原生Canvas绘制图表，无需外部依赖');
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 检查Chart.js加载状态
+            checkChartJS();
+            
+            loadRankings();
+            
+            // 标签页切换
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    currentPeriod = this.dataset.period;
+                    loadRankings();
+                });
+            });
+        });
+
+        async function loadRankings() {
+            showLoading(true);
+            
+            try {
+                // 检查管理员设置的Mock模式
+                const mockModeResponse = await fetch('/api/mock-mode');
+                const mockMode = mockModeResponse.ok ? (await mockModeResponse.json()).enabled : false;
+                
+                const apiUrl = mockMode ? '/api/mock/rankings' : '/api/rankings';
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    throw new Error('获取排名数据失败');
+                }
+                
+                rankingsData = await response.json();
+                displayRankings();
+                updateStats();
+            } catch (error) {
+                console.error('加载排名失败:', error);
+                showError('加载排名数据失败，请稍后重试');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayRankings() {
+            const rankingList = document.getElementById('rankingList');
+            const rankings = getCurrentRankings();
+            
+            if (!rankings || rankings.length === 0) {
+                document.getElementById('emptyState').style.display = 'block';
+                rankingList.innerHTML = '';
+                return;
+            }
+            
+            document.getElementById('emptyState').style.display = 'none';
+            
+            rankingList.innerHTML = rankings.map(entry => `
+                <div class="ranking-item">
+                    <div class="ranking-header" onclick="toggleDetails('${entry.user_id}')">
+                        <div class="ranking-left">
+                            <div class="rank-badge ${getRankClass(entry.rank)}">
+                                ${getRankIcon(entry.rank)}
+                            </div>
+                            <div class="user-info">
+                                <h3>${entry.user_name}</h3>
+                                <p style="font-family: monospace; color: #667eea; font-weight: 500;">${entry.user_id}</p>
+                                <small style="color: #666; font-size: 0.8em;">${getExchangeName(entry.exchange_type)}</small>
+                            </div>
+                        </div>
+                        <div class="ranking-right">
+                            <div class="percentage-main ${entry.change_percentage >= 0 ? 'positive' : 'negative'}">
+                                ${entry.change_percentage >= 0 ? '📈' : '📉'} 
+                                ${entry.change_percentage >= 0 ? '+' : ''}${formatNumber(entry.change_percentage)}%
+                            </div>
+                            <div class="balance-secondary">
+                                $${formatNumber(entry.current_balance)}
+                                <small>(${entry.change_amount >= 0 ? '+' : ''}$${formatNumber(Math.abs(entry.change_amount))})</small>
+                            </div>
+                            <div class="badges">
+                                ${entry.rank <= 3 ? '<span class="badge top3">🏆 前三名</span>' : ''}
+                                ${entry.is_doubled ? '<span class="badge doubled">🚀 翻倍</span>' : ''}
+                            </div>
+                        </div>
+                        <div class="expand-icon" id="icon-${entry.user_id}">▼</div>
+                    </div>
+                    <div class="ranking-details" id="details-${entry.user_id}">
+                        <div class="user-details">
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <span class="detail-label">用户ID:</span>
+                                    <span class="detail-value">${entry.user_id}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">交易所:</span>
+                                    <span class="detail-value">${getExchangeName(entry.exchange_type)}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">当前余额:</span>
+                                    <span class="detail-value">$${formatNumber(entry.current_balance)}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">上期余额:</span>
+                                    <span class="detail-value">${entry.previous_balance ? '$' + formatNumber(entry.previous_balance) : '无数据'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">变化金额:</span>
+                                    <span class="detail-value ${entry.change_amount >= 0 ? 'positive' : 'negative'}">
+                                        ${entry.change_amount >= 0 ? '+' : ''}$${formatNumber(entry.change_amount)}
+                                    </span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">变化比例:</span>
+                                    <span class="detail-value ${entry.change_percentage >= 0 ? 'positive' : 'negative'}">
+                                        ${entry.change_percentage >= 0 ? '+' : ''}${formatNumber(entry.change_percentage)}%
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <h4>📈 余额趋势图</h4>
+                            <canvas id="chart_${entry.user_id.replace(/-/g, '_')}"></canvas>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getCurrentRankings() {
+            if (!rankingsData) return [];
+            
+            switch (currentPeriod) {
+                case 'daily':
+                    return rankingsData.daily_rankings;
+                case 'weekly':
+                    return rankingsData.weekly_rankings;
+                case 'monthly':
+                    return rankingsData.monthly_rankings;
+                default:
+                    return rankingsData.daily_rankings;
+            }
+        }
+
+        function toggleDetails(userId) {
+            const details = document.getElementById(`details-${userId}`);
+            const icon = document.getElementById(`icon-${userId}`);
+            
+            if (details.classList.contains('show')) {
+                details.classList.remove('show');
+                icon.classList.remove('rotated');
+            } else {
+                // 关闭其他展开的详情
+                document.querySelectorAll('.ranking-details.show').forEach(d => {
+                    d.classList.remove('show');
+                });
+                document.querySelectorAll('.expand-icon.rotated').forEach(i => {
+                    i.classList.remove('rotated');
+                });
+                
+                details.classList.add('show');
+                icon.classList.add('rotated');
+                
+                // 绘制图表
+                setTimeout(() => drawChart(userId), 100);
+            }
+        }
+
+        function drawChart(userId) {
+            console.log('开始绘制原生图表，用户ID:', userId);
+            
+            const rankings = getCurrentRankings();
+            const entry = rankings.find(r => r.user_id === userId);
+            
+            if (!entry) {
+                console.error('未找到用户数据，用户ID:', userId);
+                return;
+            }
+            
+            if (!entry.balance_history) {
+                console.error('用户没有余额历史数据:', entry);
+                return;
+            }
+            
+            console.log('余额历史数据:', entry.balance_history);
+            
+            const canvasElement = document.getElementById(`chart_${userId.replace(/-/g, '_')}`);
+            
+            if (!canvasElement) {
+                console.error('未找到Canvas元素，ID:', `chart_${userId.replace(/-/g, '_')}`);
+                return;
+            }
+            
+            // 设置Canvas尺寸
+            const container = canvasElement.parentElement;
+            canvasElement.width = container.clientWidth;
+            canvasElement.height = container.clientHeight;
+            
+            const ctx = canvasElement.getContext('2d');
+            
+            // 清空画布
+            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            // 绘制原生折线图（包含余额和增长比例）
+            drawNativeChart(ctx, entry.balance_history, entry, canvasElement.width, canvasElement.height);
+            
+            console.log('原生图表绘制完成，用户ID:', userId);
+        }
+
+        function drawNativeChart(ctx, data, entry, width, height) {
+            const paddingLeft = 60;   // 左侧留更多空间给Y轴标签（余额）
+            const paddingRight = 60;  // 右侧留更多空间给Y轴标签（增长比例）
+            const paddingTop = 40;    // 顶部空间给标题
+            const paddingBottom = 50; // 底部空间给X轴标签
+            const chartWidth = width - paddingLeft - paddingRight;
+            const chartHeight = height - paddingTop - paddingBottom;
+            
+            // 获取余额数据范围
+            const balanceValues = data.map(d => parseFloat(d.balance));
+            const minBalance = Math.min(...balanceValues);
+            const maxBalance = Math.max(...balanceValues);
+            const balanceRange = maxBalance - minBalance;
+            
+            // 计算增长比例数据
+            const percentageData = [];
+            const baseValue = balanceValues[0];
+            for (let i = 0; i < balanceValues.length; i++) {
+                const percentage = ((balanceValues[i] - baseValue) / baseValue) * 100;
+                percentageData.push(percentage);
+            }
+            
+            const minPercentage = Math.min(...percentageData);
+            const maxPercentage = Math.max(...percentageData);
+            const percentageRange = maxPercentage - minPercentage;
+            
+            // 设置样式
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 3;
+            ctx.fillStyle = 'rgba(102, 126, 234, 0.1)';
+            
+            // 绘制背景网格
+            ctx.strokeStyle = '#e9ecef';
+            ctx.lineWidth = 1;
+            
+            // 垂直网格线
+            for (let i = 0; i <= data.length - 1; i++) {
+                const x = paddingLeft + (i / (data.length - 1)) * chartWidth;
+                ctx.beginPath();
+                ctx.moveTo(x, paddingTop);
+                ctx.lineTo(x, paddingTop + chartHeight);
+                ctx.stroke();
+            }
+            
+            // 水平网格线
+            for (let i = 0; i <= 5; i++) {
+                const y = paddingTop + (i / 5) * chartHeight;
+                ctx.beginPath();
+                ctx.moveTo(paddingLeft, y);
+                ctx.lineTo(paddingLeft + chartWidth, y);
+                ctx.stroke();
+            }
+            
+            // 绘制坐标轴
+            ctx.strokeStyle = '#495057';
+            ctx.lineWidth = 2;
+            
+            // Y轴
+            ctx.beginPath();
+            ctx.moveTo(paddingLeft, paddingTop);
+            ctx.lineTo(paddingLeft, paddingTop + chartHeight);
+            ctx.stroke();
+            
+            // X轴
+            ctx.beginPath();
+            ctx.moveTo(paddingLeft, paddingTop + chartHeight);
+            ctx.lineTo(paddingLeft + chartWidth, paddingTop + chartHeight);
+            ctx.stroke();
+            
+            // 绘制余额曲线
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            
+            const balancePoints = [];
+            
+            for (let i = 0; i < data.length; i++) {
+                const x = paddingLeft + (i / (data.length - 1)) * chartWidth;
+                const normalizedValue = (parseFloat(data[i].balance) - minBalance) / balanceRange;
+                const y = paddingTop + chartHeight - (normalizedValue * chartHeight);
+                
+                balancePoints.push({ x, y, value: parseFloat(data[i].balance), date: data[i].date });
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            
+            ctx.stroke();
+            
+            // 绘制余额填充区域
+            ctx.fillStyle = 'rgba(102, 126, 234, 0.1)';
+            ctx.beginPath();
+            ctx.moveTo(balancePoints[0].x, paddingTop + chartHeight);
+            
+            for (let i = 0; i < balancePoints.length; i++) {
+                ctx.lineTo(balancePoints[i].x, balancePoints[i].y);
+            }
+            
+            ctx.lineTo(balancePoints[balancePoints.length - 1].x, paddingTop + chartHeight);
+            ctx.closePath();
+            ctx.fill();
+            
+            // 绘制右侧Y轴（增长比例轴）
+            ctx.strokeStyle = '#495057';
+            ctx.lineWidth = 2;
+            
+            // 右侧Y轴
+            ctx.beginPath();
+            ctx.moveTo(paddingLeft + chartWidth, paddingTop);
+            ctx.lineTo(paddingLeft + chartWidth, paddingTop + chartHeight);
+            ctx.stroke();
+            
+            // 绘制增长比例曲线（使用独立的Y轴范围）
+            ctx.strokeStyle = '#28a745';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]); // 虚线
+            ctx.beginPath();
+            
+            const percentagePoints = [];
+            
+            // 为增长比例创建独立的Y轴范围
+            const percentageMin = Math.min(0, minPercentage); // 确保包含0%
+            const percentageMax = Math.max(0, maxPercentage); // 确保包含0%
+            const percentageAxisRange = percentageMax - percentageMin;
+            
+            for (let i = 0; i < percentageData.length; i++) {
+                const x = paddingLeft + (i / (percentageData.length - 1)) * chartWidth;
+                let normalizedPercentage;
+                if (percentageAxisRange === 0) {
+                    normalizedPercentage = 0.5; // 如果没有变化，放在中间
+                } else {
+                    normalizedPercentage = (percentageData[i] - percentageMin) / percentageAxisRange;
+                }
+                const y = paddingTop + chartHeight - (normalizedPercentage * chartHeight);
+                
+                percentagePoints.push({ x, y, value: percentageData[i], date: data[i].date });
+                
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            
+            ctx.stroke();
+            ctx.setLineDash([]); // 恢复实线
+            
+            // 绘制0%基准线（如果0%在显示范围内）
+            if (percentageMin <= 0 && percentageMax >= 0) {
+                const zeroY = paddingTop + chartHeight - ((0 - percentageMin) / percentageAxisRange) * chartHeight;
+                ctx.strokeStyle = '#dc3545';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(paddingLeft, zeroY);
+                ctx.lineTo(paddingLeft + chartWidth, zeroY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // 标注0%线
+                ctx.fillStyle = '#dc3545';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('0%基准线', paddingLeft + chartWidth / 2, zeroY - 5);
+            }
+            
+            // 绘制余额数据点
+            ctx.fillStyle = '#667eea';
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            
+            for (let point of balancePoints) {
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.stroke();
+            }
+            
+            // 绘制增长比例数据点
+            ctx.fillStyle = '#28a745';
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            
+            for (let point of percentagePoints) {
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.stroke();
+            }
+            
+            // 绘制左侧Y轴标签（余额）
+            ctx.fillStyle = '#667eea';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'right';
+            
+            for (let i = 0; i <= 5; i++) {
+                const value = minBalance + (i / 5) * balanceRange;
+                const y = paddingTop + chartHeight - (i / 5) * chartHeight;
+                ctx.fillText('$' + formatNumber(value), paddingLeft - 10, y + 4);
+            }
+            
+            // 绘制右侧Y轴标签（增长比例）
+            ctx.fillStyle = '#28a745';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'left';
+            
+            for (let i = 0; i <= 5; i++) {
+                const value = percentageMin + (i / 5) * percentageAxisRange;
+                const y = paddingTop + chartHeight - (i / 5) * chartHeight;
+                ctx.fillText(formatNumber(value) + '%', paddingLeft + chartWidth + 10, y + 4);
+            }
+            
+            // 绘制X轴标签
+            ctx.fillStyle = '#495057';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'center';
+            for (let i = 0; i < data.length; i++) {
+                const x = paddingLeft + (i / (data.length - 1)) * chartWidth;
+                const date = data[i].date.substring(5); // 只显示月-日
+                ctx.fillText(date, x, paddingTop + chartHeight + 20);
+            }
+            
+            // 绘制标题
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#495057';
+            ctx.fillText('账户余额 & 增长趋势 (双Y轴)', width / 2, 20);
+            
+            // 绘制图例
+            const legendY = paddingTop + 10;
+            
+            // 余额图例（左Y轴）
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(paddingLeft + 10, legendY);
+            ctx.lineTo(paddingLeft + 30, legendY);
+            ctx.stroke();
+            
+            ctx.fillStyle = '#667eea';
+            ctx.beginPath();
+            ctx.arc(paddingLeft + 20, legendY, 3, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.fillStyle = '#495057';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('余额 (左轴-USDT)', paddingLeft + 35, legendY + 4);
+            
+            // 增长比例图例（右Y轴）
+            ctx.strokeStyle = '#28a745';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(paddingLeft + 160, legendY);
+            ctx.lineTo(paddingLeft + 180, legendY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            ctx.fillStyle = '#28a745';
+            ctx.beginPath();
+            ctx.arc(paddingLeft + 170, legendY, 2, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.fillStyle = '#495057';
+            ctx.fillText('增长比例 (右轴-%)', paddingLeft + 185, legendY + 4);
+        }
+
+        function updateStats() {
+            if (!rankingsData) return;
+            
+            const rankings = getCurrentRankings();
+            const totalParticipants = rankings.length;
+            const totalValue = rankings.reduce((sum, r) => sum + parseFloat(r.current_balance), 0);
+            const topGainer = rankings.length > 0 ? Math.max(...rankings.map(r => parseFloat(r.change_percentage))) : 0;
+            
+            document.getElementById('totalParticipants').textContent = totalParticipants;
+            document.getElementById('totalValue').textContent = '$' + formatNumber(totalValue);
+            document.getElementById('topGainer').textContent = formatNumber(topGainer) + '%';
+            document.getElementById('lastUpdated').textContent = new Date(rankingsData.last_updated).toLocaleString('zh-CN');
+        }
+
+        function getRankClass(rank) {
+            if (rank === 1) return 'rank-1';
+            if (rank === 2) return 'rank-2';
+            if (rank === 3) return 'rank-3';
+            return 'rank-other';
+        }
+
+        function getRankIcon(rank) {
+            if (rank === 1) return '🥇';
+            if (rank === 2) return '🥈';
+            if (rank === 3) return '🥉';
+            return rank;
+        }
+
+        function getExchangeName(exchange) {
+            const names = {
+                'binance': '币安 Binance',
+                'okx': '欧易 OKX',
+                'weex': 'WEEX (已停用)'
+            };
+            return names[exchange.toLowerCase()] || exchange;
+        }
+
+        function formatNumber(num) {
+            return parseFloat(num).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const rankingList = document.getElementById('rankingList');
+            rankingList.innerHTML = `
+                <div class="empty-state">
+                    <h3>❌ ${message}</h3>
+                    <button class="refresh-btn" onclick="loadRankings()">🔄 重新加载</button>
+                </div>
+            `;
+        }
+
+        function showMessage(message, type = 'info') {
+            const colors = {
+                'error': '#dc3545',
+                'success': '#28a745',
+                'info': '#17a2b8',
+                'warning': '#ffc107'
+            };
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${colors[type] || colors.info};
+                color: white;
+                padding: 15px 20px;
+                border-radius: 5px;
+                z-index: 1000;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                max-width: 400px;
+            `;
+            messageDiv.textContent = message;
+            document.body.appendChild(messageDiv);
+            
+            setTimeout(() => {
+                if (document.body.contains(messageDiv)) {
+                    document.body.removeChild(messageDiv);
+                }
+            }, 5000);
+        }
+
+        function refreshRankings() {
+            loadRankings();
+        }
+
+        function testChart() {
+            console.log('=== 开始原生图表测试 ===');
+            
+            // 获取第一个用户的ID进行测试
+            const rankings = getCurrentRankings();
+            if (!rankings || rankings.length === 0) {
+                alert('❌ 没有排名数据');
+                return;
+            }
+            
+            const firstUser = rankings[0];
+            console.log('测试用户:', firstUser);
+            
+            // 尝试绘制图表
+            drawChart(firstUser.user_id);
+            
+            alert(`🧪 已尝试为用户 ${firstUser.user_name} 绘制原生图表，请查看控制台日志`);
+        }
+
+        function searchUser() {
+            const searchTerm = document.getElementById('searchInput').value.trim();
+            const searchResult = document.getElementById('searchResult');
+            
+            if (!searchTerm) {
+                showMessage('请输入搜索关键词', 'warning');
+                return;
+            }
+            
+            const rankings = getCurrentRankings();
+            if (!rankings || rankings.length === 0) {
+                showMessage('暂无排名数据', 'warning');
+                return;
+            }
+            
+            // 搜索用户（支持用户名和ID）
+            const foundUsers = rankings.filter(user => 
+                user.user_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                user.user_id.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+            
+            if (foundUsers.length === 0) {
+                searchResult.innerHTML = `
+                    <div style="padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; color: #856404;">
+                        <strong>🔍 未找到匹配的用户</strong><br>
+                        搜索词："${searchTerm}"<br>
+                        <small>提示：可以搜索用户名或用户ID</small>
+                    </div>
+                `;
+                searchResult.style.display = 'block';
+                return;
+            }
+            
+            // 显示搜索结果
+            const resultHtml = foundUsers.map(user => `
+                <div class="search-result-item" style="background: white; border: 2px solid #667eea; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div class="rank-badge ${getRankClass(user.rank)}" style="font-size: 14px; padding: 5px 10px;">
+                                    ${getRankIcon(user.rank)} #${user.rank}
+                                </div>
+                                <div>
+                                    <h4 style="margin: 0; color: #333;">${user.user_name}</h4>
+                                    <p style="margin: 2px 0; font-family: monospace; color: #667eea; font-size: 12px;">${user.user_id}</p>
+                                    <small style="color: #666;">${getExchangeName(user.exchange_type)}</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-size: 1.5em; font-weight: bold; color: ${user.change_percentage >= 0 ? '#28a745' : '#dc3545'};">
+                                ${user.change_percentage >= 0 ? '📈' : '📉'} ${user.change_percentage >= 0 ? '+' : ''}${formatNumber(user.change_percentage)}%
+                            </div>
+                            <div style="color: #666; font-size: 0.9em;">
+                                $${formatNumber(user.current_balance)} (${user.change_amount >= 0 ? '+' : ''}$${formatNumber(Math.abs(user.change_amount))})
+                            </div>
+                            <div style="margin-top: 5px;">
+                                ${user.rank <= 3 ? '<span class="badge top3" style="font-size: 12px;">🏆 前三名</span>' : ''}
+                                ${user.is_doubled ? '<span class="badge doubled" style="font-size: 12px; margin-left: 5px;">🚀 翻倍</span>' : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button class="refresh-btn" onclick="scrollToUser('${user.user_id}')" style="background: #28a745; font-size: 12px; padding: 5px 10px;">
+                            📍 定位到排名列表
+                        </button>
+                        <button class="refresh-btn" onclick="showUserChart('${user.user_id}')" style="background: #17a2b8; font-size: 12px; padding: 5px 10px; margin-left: 5px;">
+                            📈 查看图表
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            
+            searchResult.innerHTML = `
+                <div style="margin-bottom: 10px;">
+                    <strong>🎯 找到 ${foundUsers.length} 个匹配结果：</strong>
+                </div>
+                ${resultHtml}
+            `;
+            searchResult.style.display = 'block';
+            
+            // 滚动到搜索结果
+            searchResult.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchResult').style.display = 'none';
+        }
+
+        function scrollToUser(userId) {
+            const userElement = document.querySelector(`[onclick="toggleDetails('${userId}')"]`);
+            if (userElement) {
+                userElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // 高亮显示
+                userElement.style.backgroundColor = '#fff3cd';
+                setTimeout(() => {
+                    userElement.style.backgroundColor = '';
+                }, 2000);
+            }
+        }
+
+        function showUserChart(userId) {
+            // 先滚动到用户位置
+            scrollToUser(userId);
+            // 延迟展开图表
+            setTimeout(() => {
+                toggleDetails(userId);
+            }, 500);
+        }
+
+        // 添加回车键搜索支持
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('searchInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchUser();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

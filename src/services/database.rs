@@ -93,6 +93,25 @@ impl DatabaseService {
             "#
         ).execute(pool).await?;
 
+        // 余额历史记录表（用于排名系统）
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS balance_history (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                user_name TEXT NOT NULL,
+                exchange_type TEXT NOT NULL,
+                total_usdt_value TEXT NOT NULL,
+                balance_details TEXT NOT NULL, -- JSON格式存储详细余额信息
+                recorded_date TEXT NOT NULL, -- YYYY-MM-DD格式
+                recorded_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                UNIQUE(user_id, recorded_date) -- 每个用户每天只能有一条记录
+            )
+            "#
+        ).execute(pool).await?;
+
         Ok(())
     }
 
@@ -454,6 +473,188 @@ impl DatabaseService {
         }
 
         Ok(registrations)
+    }
+
+    // 余额历史记录管理
+    pub async fn save_balance_history(
+        &self,
+        user_id: Uuid,
+        user_name: &str,
+        exchange_type: &str,
+        total_usdt_value: Decimal,
+        balance_details: &str,
+        recorded_date: &str,
+    ) -> Result<()> {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+
+        // 使用 INSERT OR REPLACE 来处理重复记录
+        sqlx::query(
+            r#"
+            INSERT OR REPLACE INTO balance_history 
+            (id, user_id, user_name, exchange_type, total_usdt_value, balance_details, recorded_date, recorded_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#
+        )
+        .bind(id.to_string())
+        .bind(user_id.to_string())
+        .bind(user_name)
+        .bind(exchange_type)
+        .bind(total_usdt_value.to_string())
+        .bind(balance_details)
+        .bind(recorded_date)
+        .bind(now.to_rfc3339())
+        .bind(now.to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_balance_history_by_user(
+        &self,
+        user_id: Uuid,
+        days: u32,
+    ) -> Result<Vec<crate::models::ranking::BalanceHistory>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, user_id, user_name, exchange_type, total_usdt_value, 
+                   balance_details, recorded_date, recorded_at, created_at
+            FROM balance_history 
+            WHERE user_id = ?
+            ORDER BY recorded_date DESC
+            LIMIT ?
+            "#
+        )
+        .bind(user_id.to_string())
+        .bind(days as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut history = Vec::new();
+        for row in rows {
+            history.push(crate::models::ranking::BalanceHistory {
+                id: Uuid::parse_str(&row.get::<String, _>("id"))?,
+                user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
+                user_name: row.get("user_name"),
+                exchange_type: row.get("exchange_type"),
+                total_usdt_value: Decimal::from_str(&row.get::<String, _>("total_usdt_value"))?,
+                balance_details: row.get("balance_details"),
+                recorded_date: row.get("recorded_date"),
+                recorded_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("recorded_at"))?.with_timezone(&Utc),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
+            });
+        }
+
+        Ok(history)
+    }
+
+    pub async fn get_latest_balance_history(&self, days: u32) -> Result<Vec<crate::models::ranking::BalanceHistory>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, user_id, user_name, exchange_type, total_usdt_value, 
+                   balance_details, recorded_date, recorded_at, created_at
+            FROM balance_history 
+            WHERE recorded_date >= date('now', '-' || ? || ' days')
+            ORDER BY recorded_date DESC, total_usdt_value DESC
+            "#
+        )
+        .bind(days as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut history = Vec::new();
+        for row in rows {
+            history.push(crate::models::ranking::BalanceHistory {
+                id: Uuid::parse_str(&row.get::<String, _>("id"))?,
+                user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
+                user_name: row.get("user_name"),
+                exchange_type: row.get("exchange_type"),
+                total_usdt_value: Decimal::from_str(&row.get::<String, _>("total_usdt_value"))?,
+                balance_details: row.get("balance_details"),
+                recorded_date: row.get("recorded_date"),
+                recorded_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("recorded_at"))?.with_timezone(&Utc),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
+            });
+        }
+
+        Ok(history)
+    }
+
+    pub async fn get_all_approved_users_with_exchanges(&self) -> Result<Vec<(Uuid, String, String)>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT DISTINCT r.user_name, r.exchange_type, r.id as user_id
+            FROM registrations r
+            WHERE r.status = 'Approved'
+            ORDER BY r.user_name
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut users = Vec::new();
+        for row in rows {
+            users.push((
+                Uuid::parse_str(&row.get::<String, _>("user_id"))?,
+                row.get::<String, _>("user_name"),
+                row.get::<String, _>("exchange_type"),
+            ));
+        }
+
+        Ok(users)
+    }
+
+    pub async fn get_registration_by_user_and_exchange(
+        &self,
+        user_name: &str,
+        exchange_type: &str,
+    ) -> Result<Registration> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, user_name, exchange_type, api_key, secret_key, passphrase,
+                   status, admin_notes, created_at, updated_at, reviewed_at
+            FROM registrations 
+            WHERE user_name = ? AND exchange_type = ? AND status = 'Approved'
+            LIMIT 1
+            "#
+        )
+        .bind(user_name)
+        .bind(exchange_type)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let status_str = row.get::<String, _>("status");
+        let status = match status_str.as_str() {
+            "Pending" => RegistrationStatus::Pending,
+            "Approved" => RegistrationStatus::Approved,
+            "Rejected" => RegistrationStatus::Rejected,
+            _ => return Err(anyhow::anyhow!("未知的状态: {}", status_str)),
+        };
+
+        let exchange_type_str = row.get::<String, _>("exchange_type");
+        let exchange_type = match exchange_type_str.as_str() {
+            "binance" => RegistrationExchangeType::Binance,
+            "okx" => RegistrationExchangeType::OKX,
+            "weex" => RegistrationExchangeType::WEEX,
+            _ => return Err(anyhow::anyhow!("未知的交易所类型: {}", exchange_type_str)),
+        };
+
+        Ok(Registration {
+            id: Uuid::parse_str(&row.get::<String, _>("id"))?,
+            user_name: row.get("user_name"),
+            exchange: exchange_type,
+            api_key: row.get("api_key"),
+            secret_key: row.get("secret_key"),
+            passphrase: row.get("passphrase"),
+            status,
+            admin_notes: row.get("admin_notes"),
+            created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
+            updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&Utc),
+            reviewed_at: row.get::<Option<String>, _>("reviewed_at")
+                .map(|s| DateTime::parse_from_rfc3339(&s).map(|dt| dt.with_timezone(&Utc)))
+                .transpose()?,
+        })
     }
 }
 
