@@ -19,11 +19,17 @@ pub async fn admin_auth_middleware(
         .get("authorization")
         .and_then(|header| header.to_str().ok());
 
+    log::debug!("🔍 认证头部: {:?}", auth_header);
+
     // 提取token
     let token = match AuthService::extract_token_from_header(auth_header) {
-        Some(token) => token,
+        Some(token) => {
+            log::debug!("🔍 提取到token: {}...", &token[..token.len().min(20)]);
+            token
+        },
         None => {
-            log::warn!("🚨 未授权访问管理API: 缺少token");
+            log::warn!("🚨 未授权访问管理API: 缺少token或格式错误");
+            log::debug!("🔍 原始Authorization头部: {:?}", auth_header);
             return Err(StatusCode::UNAUTHORIZED);
         }
     };
@@ -31,6 +37,7 @@ pub async fn admin_auth_middleware(
     // 验证token
     match auth_service.verify_admin(&token) {
         Ok(true) => {
+            log::debug!("✅ Token验证成功");
             // 验证成功，继续处理请求
             Ok(next.run(request).await)
         }
@@ -40,6 +47,7 @@ pub async fn admin_auth_middleware(
         }
         Err(e) => {
             log::warn!("🚨 Token验证失败: {}", e);
+            log::debug!("🔍 失败的token: {}...", &token[..token.len().min(20)]);
             Err(StatusCode::UNAUTHORIZED)
         }
     }

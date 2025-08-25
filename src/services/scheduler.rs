@@ -5,6 +5,7 @@ use log::{info, error};
 use rust_decimal::Decimal;
 use tokio::time::{sleep, Duration as TokioDuration};
 
+#[derive(Clone)]
 pub struct Scheduler {
     database: DatabaseService,
     exchange_service: ExchangeService,

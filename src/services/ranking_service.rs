@@ -70,15 +70,14 @@ impl RankingService {
         // 从数据库获取用户的API配置
         let registration = self.database.get_registration_by_user_and_exchange(user_name, exchange_type).await?;
         
-        // 构造UserExchange对象
+        // 直接使用Registration中已经解析好的交易所类型，避免重复解析
         let user_exchange = UserExchange {
             id: user_id,
             user_id,
-            exchange_type: match exchange_type {
-                "Binance" | "binance" => ExchangeType::Binance,
-                "OKX" | "okx" => ExchangeType::Okx,
-                "WEEX" | "weex" => ExchangeType::Weex,
-                _ => return Err(anyhow::anyhow!("不支持的交易所类型: {}", exchange_type)),
+            exchange_type: match registration.exchange {
+                crate::models::registration::RegistrationExchangeType::Binance => ExchangeType::Binance,
+                crate::models::registration::RegistrationExchangeType::OKX => ExchangeType::Okx,
+                crate::models::registration::RegistrationExchangeType::WEEX => ExchangeType::Weex,
             },
             api_key: registration.api_key,
             secret_key: registration.secret_key,

@@ -427,6 +427,7 @@
             </div>
             <button class="btn btn-primary" onclick="loadRegistrations()">🔄 刷新</button>
                             <button class="btn" onclick="toggleMockMode()" id="mockToggleBtn" style="background: #28a745; color: white; margin-left: 10px;">📊 演示模式: 关闭</button>
+                <button class="btn" onclick="collectBalances()" id="collectBalancesBtn" style="background: #fd7e14; color: white; margin-left: 10px;">💰 收集余额数据</button>
                 <button class="btn" onclick="sendRankingToDingTalk()" id="sendRankingBtn" style="background: #17a2b8; color: white; margin-left: 10px;">📢 发送排名到钉钉</button>
         </div>
 
@@ -1298,7 +1299,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
                     }
                 });
                 
@@ -1316,6 +1317,45 @@
                 sendRankingBtn.disabled = false;
                 sendRankingBtn.textContent = originalText;
                 sendRankingBtn.style.background = '#17a2b8';
+            }
+        }
+
+        // 收集余额数据
+        async function collectBalances() {
+            const collectBalancesBtn = document.getElementById('collectBalancesBtn');
+            const originalText = collectBalancesBtn.textContent;
+            
+            try {
+                collectBalancesBtn.disabled = true;
+                collectBalancesBtn.textContent = '💰 收集中...';
+                collectBalancesBtn.style.background = '#6c757d';
+                
+                const response = await fetch('/api/admin/collect-balances', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    alert(`✅ 余额收集成功！\n\n成功: ${result.collected_count} 个\n失败: ${result.failed_count} 个\n\n${result.message}`);
+                } else {
+                    let errorDetails = '';
+                    if (result.errors && result.errors.length > 0) {
+                        errorDetails = '\n\n错误详情:\n' + result.errors.join('\n');
+                    }
+                    alert(`❌ 余额收集失败：${result.message || '未知错误'}${errorDetails}`);
+                }
+            } catch (error) {
+                console.error('收集余额失败:', error);
+                alert('❌ 收集余额失败：网络错误');
+            } finally {
+                collectBalancesBtn.disabled = false;
+                collectBalancesBtn.textContent = originalText;
+                collectBalancesBtn.style.background = '#fd7e14';
             }
         }
 

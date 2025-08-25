@@ -107,20 +107,36 @@ impl AuthService {
 
     /// 验证JWT token
     pub fn verify_token(&self, token: &str) -> Result<Claims> {
+        log::debug!("🔍 开始验证token，长度: {}", token.len());
+        
         let validation = Validation::new(Algorithm::HS256);
         
-        let token_data = decode::<Claims>(
+        let token_data = match decode::<Claims>(
             token,
             &DecodingKey::from_secret(self.jwt_secret.as_ref()),
             &validation,
-        )?;
+        ) {
+            Ok(data) => {
+                log::debug!("🔍 Token解码成功");
+                data
+            },
+            Err(e) => {
+                log::debug!("🔍 Token解码失败: {}", e);
+                anyhow::bail!("Token格式无效: {}", e);
+            }
+        };
 
         // 检查是否过期
         let now = Utc::now().timestamp() as usize;
+        log::debug!("🔍 当前时间: {}, Token过期时间: {}", now, token_data.claims.exp);
+        
         if token_data.claims.exp < now {
+            let expired_seconds = now - token_data.claims.exp;
+            log::debug!("🔍 Token已过期 {} 秒", expired_seconds);
             anyhow::bail!("Token已过期");
         }
 
+        log::debug!("🔍 Token验证成功，用户: {}, 角色: {}", token_data.claims.sub, token_data.claims.role);
         Ok(token_data.claims)
     }
 

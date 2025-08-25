@@ -266,6 +266,13 @@ async fn start_web_server(
     ranking_service: RankingService,
     config: AppConfig,
 ) -> Result<()> {
+    // 创建调度器实例用于管理API
+    let scheduler = Scheduler::new(
+        database.clone(),
+        exchange_service.clone(),
+        dingtalk_bot.clone(),
+        ranking_service.clone(),
+    );
             let webhook_handler = DingTalkWebhookHandler::new(database, dingtalk_bot.clone(), config.web_base_url.clone());
     
             // 基础公开路由
@@ -310,9 +317,19 @@ async fn start_web_server(
 
         // 排名相关的管理API路由
         let ranking_admin_routes = Router::new()
-            .route("/api/admin/collect-balances", post(handlers::ranking::trigger_balance_collection))
+            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone(), ranking_service.clone()))
+            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+
+        // 手动发送排名的管理API路由（基于已有数据，不重新获取交易所数据）
+        let manual_ranking_admin_routes = Router::new()
             .route("/api/admin/send-ranking", post(handlers::admin_ranking::send_ranking_to_dingtalk))
-            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone(), ranking_service.clone(), dingtalk_bot.clone()))
+            .with_state((ranking_service.clone(), dingtalk_bot.clone()))
+            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+
+        // 手动收集余额的管理API路由（从交易所获取最新数据）
+        let balance_collection_admin_routes = Router::new()
+            .route("/api/admin/collect-balances", post(handlers::admin_balance::collect_all_balances))
+            .with_state(ranking_service.clone())
             .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
 
         // 管理页面路由（不需要服务器端认证，由前端JavaScript处理）
@@ -326,6 +343,8 @@ async fn start_web_server(
             .merge(mock_routes)
             .merge(basic_admin_routes)
             .merge(ranking_admin_routes)
+            .merge(manual_ranking_admin_routes)
+            .merge(balance_collection_admin_routes)
             .merge(admin_page_routes)
             .layer(axum::middleware::from_fn(security_headers_middleware))
             .layer(CorsLayer::permissive());
@@ -357,39 +376,263 @@ async fn start_web_server(
 async fn serve_home_page() -> Html<&'static str> {
     Html(r#"
     <!DOCTYPE html>
-    <html>
+    <html lang="zh-CN">
     <head>
-        <title>BNHBot - 钉钉机器人系统</title>
-        <meta charset="utf-8">
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>BNHBot - 交易大赛机器人</title>
         <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            .container { max-width: 800px; margin: 0 auto; }
-            .btn { display: inline-block; padding: 10px 20px; margin: 10px; 
-                   background: #1890ff; color: white; text-decoration: none; border-radius: 5px; }
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                color: #333;
+            }
+
+            /* 导航栏样式 */
+            .navbar {
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(10px);
+                padding: 15px 0;
+                box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            }
+
+            .navbar .nav-container {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 0 20px;
+            }
+
+            .navbar-brand {
+                color: white;
+                font-size: 24px;
+                font-weight: bold;
+                text-decoration: none;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .navbar-nav {
+                display: flex;
+                gap: 20px;
+                list-style: none;
+                margin: 0;
+                padding: 0;
+            }
+
+            .nav-link {
+                color: white;
+                text-decoration: none;
+                padding: 8px 16px;
+                border-radius: 20px;
+                transition: all 0.3s ease;
+                font-weight: 500;
+            }
+
+            .nav-link:hover, .nav-link.active {
+                background: rgba(255, 255, 255, 0.2);
+                transform: translateY(-2px);
+            }
+
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 40px 20px;
+            }
+
+            .hero {
+                text-align: center;
+                color: white;
+                margin-bottom: 60px;
+            }
+
+            .hero h1 {
+                font-size: 3.5rem;
+                margin-bottom: 20px;
+                text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            }
+
+            .hero p {
+                font-size: 1.2rem;
+                margin-bottom: 30px;
+                opacity: 0.9;
+            }
+
+            .features {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 30px;
+                margin-bottom: 60px;
+            }
+
+            .feature-card {
+                background: rgba(255, 255, 255, 0.95);
+                padding: 30px;
+                border-radius: 20px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+                transition: transform 0.3s ease;
+                text-align: center;
+            }
+
+            .feature-card:hover {
+                transform: translateY(-10px);
+            }
+
+            .feature-icon {
+                font-size: 3rem;
+                margin-bottom: 20px;
+                display: block;
+            }
+
+            .feature-card h3 {
+                color: #333;
+                margin-bottom: 15px;
+                font-size: 1.3rem;
+            }
+
+            .feature-card p {
+                color: #666;
+                line-height: 1.6;
+            }
+
+            .cta-section {
+                text-align: center;
+                background: rgba(255, 255, 255, 0.95);
+                padding: 40px;
+                border-radius: 20px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            }
+
+            .cta-section h2 {
+                color: #333;
+                margin-bottom: 20px;
+                font-size: 2rem;
+            }
+
+            .cta-buttons {
+                display: flex;
+                gap: 20px;
+                justify-content: center;
+                flex-wrap: wrap;
+                margin-top: 30px;
+            }
+
+            .btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                padding: 15px 30px;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                text-decoration: none;
+                border-radius: 50px;
+                font-weight: 600;
+                transition: all 0.3s ease;
+                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            }
+
+            .btn:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+            }
+
+            .btn.secondary {
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                box-shadow: 0 5px 15px rgba(240, 147, 251, 0.4);
+            }
+
+            .btn.secondary:hover {
+                box-shadow: 0 8px 25px rgba(240, 147, 251, 0.6);
+            }
+
+            @media (max-width: 768px) {
+                .navbar .nav-container {
+                    flex-direction: column;
+                    gap: 15px;
+                }
+                
+                .navbar-nav {
+                    flex-wrap: wrap;
+                    justify-content: center;
+                    gap: 10px;
+                }
+
+                .hero h1 {
+                    font-size: 2.5rem;
+                }
+
+                .cta-buttons {
+                    flex-direction: column;
+                    align-items: center;
+                }
+            }
         </style>
     </head>
     <body>
+        <!-- 导航栏 -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <a href="/" class="navbar-brand">
+                    🤖 BNHBot
+                </a>
+                <ul class="navbar-nav">
+                    <li><a href="/" class="nav-link active">🏠 首页</a></li>
+                    <li><a href="/register" class="nav-link">📝 报名参赛</a></li>
+                    <li><a href="/rankings" class="nav-link">🏆 排名榜</a></li>
+                </ul>
+            </div>
+        </nav>
+
         <div class="container">
-            <h1>🤖 BNHBot 钉钉机器人系统</h1>
-            <p>欢迎使用 BNHBot！这是一个集成了交易所余额查询和报名系统的钉钉机器人。</p>
-            
-            <h2>主要功能</h2>
-            <ul>
-                <li>📊 每日自动播报交易所余额</li>
-                <li>📝 用户报名和审核系统</li>
-                <li>🏢 支持币安、欧易、WEEX三大交易所</li>
-                <li>⏰ 定时任务自动执行</li>
-            </ul>
-            
-            <h2>快速开始</h2>
-            <a href="/register" class="btn">📝 用户报名</a>
-            <a href="/admin" class="btn">⚙️ 管理界面</a>
-            <a href="/api/dingtalk/test" class="btn">🔧 Webhook测试</a>
-            
-            <h2>系统状态</h2>
-            <p>✅ 定时任务调度器: 运行中</p>
-            <p>✅ Web服务器: 运行中</p>
-            <p>✅ 数据库: 连接正常</p>
+            <!-- 英雄区域 -->
+            <div class="hero">
+                <h1>🤖 BNHBot</h1>
+                <p>专业的交易大赛机器人，助力你的交易之路</p>
+            </div>
+
+            <!-- 功能特色 -->
+            <div class="features">
+                <div class="feature-card">
+                    <span class="feature-icon">📊</span>
+                    <h3>实时排名播报</h3>
+                    <p>每日8点自动播报交易大赛排名，实时跟踪你的表现和进步</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">🏢</span>
+                    <h3>多交易所支持</h3>
+                    <p>支持币安、欧易等主流交易所，一站式管理你的交易账户</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">🏆</span>
+                    <h3>竞技排名系统</h3>
+                    <p>专业的排名算法，公平公正的比赛环境，展示你的交易实力</p>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">📱</span>
+                    <h3>钉钉集成</h3>
+                    <p>无缝集成钉钉机器人，随时随地获取最新的排名和交易信息</p>
+                </div>
+            </div>
+
+            <!-- 行动号召 -->
+            <div class="cta-section">
+                <h2>🚀 开始你的交易大赛之旅</h2>
+                <p>加入我们的交易大赛，与全球交易者一较高下，证明你的交易实力！</p>
+                <div class="cta-buttons">
+                    <a href="/register" class="btn">📝 立即报名参赛</a>
+                    <a href="/rankings" class="btn secondary">🏆 查看排名榜</a>
+                </div>
+            </div>
         </div>
     </body>
     </html>

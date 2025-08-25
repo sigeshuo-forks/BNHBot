@@ -8,6 +8,7 @@ pub mod ranking;
 pub mod mock_ranking;
 pub mod mock_mode;
 pub mod admin_ranking;
+pub mod admin_balance;
 
 pub use command::*;
 pub use webhook::*;

@@ -1,7 +1,8 @@
-use axum::{extract::State, response::Json, http::StatusCode};
+use axum::{extract::State, response::Json};
 use serde::{Serialize, Deserialize};
-use crate::services::{RegistrationService, AuthService, ExchangeService, RankingService, DingTalkBot};
+use crate::services::{RankingService, DingTalkBot};
 use log::{info, error};
+use std::env;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendRankingResponse {
@@ -10,86 +11,79 @@ pub struct SendRankingResponse {
 }
 
 /// 手动发送排名到钉钉群（管理员功能）
+/// 仅基于数据库中已有的余额数据计算排名并发送，不重新获取交易所数据
 pub async fn send_ranking_to_dingtalk(
-    State((_, _, _, ranking_service, dingtalk_bot)): State<(RegistrationService, AuthService, ExchangeService, RankingService, DingTalkBot)>,
-) -> Result<Json<SendRankingResponse>, StatusCode> {
-    info!("管理员手动触发发送排名到钉钉群");
+    State((ranking_service, dingtalk_bot)): State<(RankingService, DingTalkBot)>,
+) -> Json<SendRankingResponse> {
+    info!("管理员手动发送排名到钉钉群（基于已有数据）");
     
-    match send_ranking_notification(&ranking_service, &dingtalk_bot).await {
-        Ok(message) => {
-            info!("手动发送排名成功: {}", message);
-            Ok(Json(SendRankingResponse {
-                success: true,
-                message,
-            }))
+    // 获取基础URL配置
+    let base_url = env::var("WEB_SERVER_BASE_URL")
+        .or_else(|_| env::var("WEB_BASE_URL"))
+        .unwrap_or_else(|_| "http://localhost:3000".to_string());
+    let ranking_url = format!("{}/rankings", base_url);
+    
+    match ranking_service.get_dingtalk_ranking_message(&ranking_url).await {
+        Ok(ranking_message) => {
+            // 构建钉钉消息内容
+            let mut message_content = String::new();
+            message_content.push_str("🏆 每日交易大赛排名榜\n\n");
+            message_content.push_str(&format!("📊 参赛人数: {} 人\n", ranking_message.total_participants));
+            message_content.push_str("🥇 前5名排名:\n\n");
+            
+            for (index, entry) in ranking_message.top_rankings.iter().enumerate() {
+                let rank_icon = match index {
+                    0 => "🥇",
+                    1 => "🥈", 
+                    2 => "🥉",
+                    _ => "🏅",
+                };
+                
+                let change_icon = if entry.change_amount >= rust_decimal::Decimal::ZERO { "📈" } else { "📉" };
+                let doubled_badge = if entry.is_doubled { " 🚀翻倍" } else { "" };
+                
+                message_content.push_str(&format!(
+                    "{} {}. {}{} ({})\n💰 余额: ${:.2} USDT\n{} 变化: ${:.2} ({:.2}%)\n\n",
+                    rank_icon,
+                    entry.rank,
+                    entry.user_name,
+                    doubled_badge,
+                    entry.exchange_type,
+                    entry.current_balance,
+                    change_icon,
+                    entry.change_amount,
+                    entry.change_percentage
+                ));
+            }
+            
+            message_content.push_str("📈 查看详细排名和图表:\n");
+            message_content.push_str(&format!("🔗 {}\n\n", ranking_message.ranking_url));
+            message_content.push_str("💪 继续加油，期待明日翻仓的你！");
+            
+            // 发送钉钉消息
+            match dingtalk_bot.send_text_message(&message_content).await {
+                Ok(_) => {
+                    info!("手动发送排名成功");
+                    Json(SendRankingResponse {
+                        success: true,
+                        message: format!("成功发送排名到钉钉群！共发送前{}名排名。", ranking_message.top_rankings.len()),
+                    })
+                }
+                Err(e) => {
+                    error!("发送钉钉消息失败: {}", e);
+                    Json(SendRankingResponse {
+                        success: false,
+                        message: format!("发送钉钉消息失败: {}", e),
+                    })
+                }
+            }
         }
         Err(e) => {
-            error!("手动发送排名失败: {}", e);
-            Ok(Json(SendRankingResponse {
+            error!("获取排名数据失败: {}", e);
+            Json(SendRankingResponse {
                 success: false,
-                message: format!("发送失败: {}", e),
-            }))
+                message: format!("获取排名数据失败: {}", e),
+            })
         }
     }
-}
-
-async fn send_ranking_notification(
-    ranking_service: &RankingService,
-    dingtalk_bot: &DingTalkBot,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    // 获取排名数据
-    let rankings_response = ranking_service.get_rankings().await?;
-    
-    // 检查是否有数据
-    if rankings_response.daily_rankings.is_empty() {
-        return Ok("暂无排名数据，未发送消息".to_string());
-    }
-    
-    // 生成钉钉排名消息
-    let ranking_url = "http://localhost:3000/rankings"; // TODO: 从配置获取
-    let ranking_message = ranking_service.get_dingtalk_ranking_message(ranking_url).await?;
-    
-    // 格式化消息内容
-    let mut message_content = String::new();
-    message_content.push_str("🏆 交易大赛实时排名播报\n\n");
-    message_content.push_str(&format!("📊 参赛人数: {} 人\n", ranking_message.total_participants));
-    message_content.push_str("🎯 前5名排名:\n\n");
-    
-    for (index, entry) in ranking_message.top_rankings.iter().enumerate() {
-        let rank_icon = match index + 1 {
-            1 => "🥇",
-            2 => "🥈", 
-            3 => "🥉",
-            _ => "🏅",
-        };
-        
-        let trend_icon = if entry.change_percentage >= rust_decimal::Decimal::ZERO {
-            "📈"
-        } else {
-            "📉"
-        };
-        
-        let doubled_badge = if entry.is_doubled { " 🚀翻倍" } else { "" };
-        
-        message_content.push_str(&format!(
-            "{} #{} {} - {}%{}\n💰 ${} ({}${})\n\n",
-            rank_icon,
-            entry.rank,
-            entry.user_name,
-            if entry.change_percentage >= rust_decimal::Decimal::ZERO { "+" } else { "" },
-            entry.change_percentage,
-            doubled_badge,
-            entry.current_balance,
-            if entry.change_amount >= rust_decimal::Decimal::ZERO { "+" } else { "" },
-            entry.change_amount.abs()
-        ));
-    }
-    
-    message_content.push_str(&format!("📈 查看完整排名: {}\n", ranking_message.ranking_url));
-    message_content.push_str("💪 继续加油，争取更好成绩！");
-    
-    // 发送到钉钉
-    dingtalk_bot.send_text_message(&message_content).await?;
-    
-    Ok(format!("成功发送排名到钉钉群，包含{}名参赛者的前5名排名", ranking_message.total_participants))
 }

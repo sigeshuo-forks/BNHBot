@@ -634,9 +634,9 @@ impl DatabaseService {
 
         let exchange_type_str = row.get::<String, _>("exchange_type");
         let exchange_type = match exchange_type_str.as_str() {
-            "binance" => RegistrationExchangeType::Binance,
-            "okx" => RegistrationExchangeType::OKX,
-            "weex" => RegistrationExchangeType::WEEX,
+            "Binance" | "binance" => RegistrationExchangeType::Binance,
+            "OKX" | "okx" => RegistrationExchangeType::OKX,
+            "WEEX" | "weex" => RegistrationExchangeType::WEEX,
             _ => return Err(anyhow::anyhow!("未知的交易所类型: {}", exchange_type_str)),
         };
 
