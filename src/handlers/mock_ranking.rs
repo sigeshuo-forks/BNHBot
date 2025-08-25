@@ -65,6 +65,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             ],
             user_label: "🚀 翻倍达人".to_string(),
             identity: "Student".to_string(),
+            participation_days: 6, // 6天的余额历史记录
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440007").unwrap(),
@@ -86,6 +87,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             ],
             user_label: "🚀 翻倍达人".to_string(),
             identity: "Regular".to_string(),
+            participation_days: 6, // 6天的余额历史记录
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440002").unwrap(),
@@ -107,6 +109,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             ],
             user_label: "💎 稳健投资者".to_string(),
             identity: "Regular".to_string(),
+            participation_days: 6, // 6天的余额历史记录
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440004").unwrap(),
@@ -128,6 +131,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             ],
             user_label: "💎 稳健投资者".to_string(),
             identity: "Student".to_string(),
+            participation_days: 6, // 6天的余额历史记录
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440005").unwrap(),
@@ -149,6 +153,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             ],
             user_label: "💎 稳健投资者".to_string(),
             identity: "Student".to_string(),
+            participation_days: 6, // 6天的余额历史记录
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440003").unwrap(),
@@ -170,6 +175,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             ],
             user_label: "🌱 币圈新手".to_string(),
             identity: "Student".to_string(),
+            participation_days: 6, // 6天的余额历史记录
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440006").unwrap(),
@@ -191,6 +197,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             ],
             user_label: "📉 追涨杀跌王".to_string(),
             identity: "Regular".to_string(),
+            participation_days: 6, // 6天的余额历史记录
         },
     ];
 

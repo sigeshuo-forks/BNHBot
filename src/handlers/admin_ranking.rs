@@ -42,18 +42,26 @@ pub async fn send_ranking_to_dingtalk(
                 let change_icon = if entry.change_amount >= rust_decimal::Decimal::ZERO { "📈" } else { "📉" };
                 let doubled_badge = if entry.is_doubled { " 🚀翻倍" } else { "" };
                 
+                // 获取身份标识
+                let identity_badge = match entry.identity.as_str() {
+                    "Student" => " 🎓",
+                    _ => "",
+                };
+                
                 message_content.push_str(&format!(
-                    "{} {}. {} {}{} ({})\n💰 余额: ${:.2} USDT\n{} 变化: ${:.2} ({:.2}%)\n\n",
+                    "{} {}. {}{} {}{} ({})\n💰 余额: ${:.2} USDT\n{} 变化: ${:.2} ({:.2}%)\n📅 参与: {} 天\n\n",
                     rank_icon,
                     entry.rank,
                     entry.user_name,
+                    identity_badge,
                     entry.user_label,
                     doubled_badge,
                     entry.exchange_type,
                     entry.current_balance,
                     change_icon,
                     entry.change_amount,
-                    entry.change_percentage
+                    entry.change_percentage,
+                    entry.participation_days
                 ));
             }
             

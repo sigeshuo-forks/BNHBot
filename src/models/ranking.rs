@@ -32,6 +32,7 @@ pub struct RankingEntry {
     pub balance_history: Vec<BalanceHistoryPoint>, // 用于绘制图表
     pub user_label: String, // 用户标签：交易大神、翻倍达人等
     pub identity: String, // 用户身份：Student或Regular
+    pub participation_days: u32, // 参与天数
 }
 
 /// 余额历史点（用于图表）

@@ -189,6 +189,9 @@ impl RankingService {
                 Err(_) => "Regular".to_string(), // 默认为普通用户
             };
 
+            // 计算参与天数（有余额记录的天数）
+            let participation_days = user_history.len() as u32;
+
             rankings.push(RankingEntry {
                 user_id: user_history[0].user_id,
                 user_name: user_history[0].user_name.clone(),
@@ -202,6 +205,7 @@ impl RankingService {
                 balance_history,
                 user_label,
                 identity,
+                participation_days,
             });
         }
 

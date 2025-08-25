@@ -741,7 +741,7 @@
                             <div class="user-info">
                                 <h3>${entry.user_name} <span class="user-label">${entry.user_label}</span><span class="identity-badge identity-${(entry.identity || 'Regular').toLowerCase()}">${getIdentityText(entry.identity || 'Regular')}</span></h3>
                                 <p style="font-family: monospace; color: #667eea; font-weight: 500;">${maskUserId(entry.user_id)}</p>
-                                <small style="color: #666; font-size: 0.8em;">${getExchangeName(entry.exchange_type)}</small>
+                                <small style="color: #666; font-size: 0.8em;">${getExchangeName(entry.exchange_type)} • 参与 ${entry.participation_days || 0} 天</small>
                             </div>
                         </div>
                         <div class="ranking-right">
