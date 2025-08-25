@@ -1033,10 +1033,13 @@
         function getExchangeName(exchange) {
             const names = {
                 'binance': '币安',
+                'Binance': '币安',
                 'okx': '欧易',
-                'weex': 'WEEX (已停用)'
+                'OKX': '欧易',
+                'weex': 'WEEX (已停用)',
+                'WEEX': 'WEEX (已停用)'
             };
-            return names[exchange.toLowerCase()] || exchange;
+            return names[exchange] || names[exchange.toLowerCase()] || exchange;
         }
 
         function getStatusText(status) {

@@ -173,6 +173,13 @@ impl RankingService {
                 })
                 .collect();
 
+            let user_label = Self::generate_user_label(
+                current_balance,
+                change_percentage,
+                is_doubled,
+                &user_history
+            );
+
             rankings.push(RankingEntry {
                 user_id: user_history[0].user_id,
                 user_name: user_history[0].user_name.clone(),
@@ -184,6 +191,7 @@ impl RankingService {
                 rank: 0, // 稍后设置
                 is_doubled,
                 balance_history,
+                user_label,
             });
         }
 
@@ -196,6 +204,52 @@ impl RankingService {
         }
 
         Ok(rankings)
+    }
+
+    /// 生成用户标签
+    fn generate_user_label(
+        current_balance: Decimal,
+        change_percentage: Decimal,
+        is_doubled: bool,
+        user_history: &[BalanceHistory],
+    ) -> String {
+        // 翻倍达人
+        if is_doubled {
+            return "🚀 翻倍达人".to_string();
+        }
+
+        // 交易大神 (收益率 > 50%)
+        if change_percentage >= Decimal::from(50) {
+            return "🔥 交易大神".to_string();
+        }
+
+        // 量化高手 (收益率 > 20% 且余额 > 10000)
+        if change_percentage >= Decimal::from(20) && current_balance >= Decimal::from(10000) {
+            return "🤖 量化高手".to_string();
+        }
+
+        // 稳健投资者 (收益率 0-20%)
+        if change_percentage >= Decimal::ZERO && change_percentage < Decimal::from(20) {
+            return "💎 稳健投资者".to_string();
+        }
+
+        // 佛系持币 (收益率 -5% 到 0%)
+        if change_percentage >= Decimal::from(-5) && change_percentage < Decimal::ZERO {
+            return "🧘 佛系持币".to_string();
+        }
+
+        // 追涨杀跌王 (收益率 < -20%)
+        if change_percentage < Decimal::from(-20) {
+            return "📉 追涨杀跌王".to_string();
+        }
+
+        // 币圈新手 (余额 < 1000 或历史记录少)
+        if current_balance < Decimal::from(1000) || user_history.len() <= 3 {
+            return "🌱 币圈新手".to_string();
+        }
+
+        // 默认标签
+        "📊 普通交易者".to_string()
     }
 
     /// 获取排名响应

@@ -43,10 +43,11 @@ pub async fn send_ranking_to_dingtalk(
                 let doubled_badge = if entry.is_doubled { " 🚀翻倍" } else { "" };
                 
                 message_content.push_str(&format!(
-                    "{} {}. {}{} ({})\n💰 余额: ${:.2} USDT\n{} 变化: ${:.2} ({:.2}%)\n\n",
+                    "{} {}. {} {}{} ({})\n💰 余额: ${:.2} USDT\n{} 变化: ${:.2} ({:.2}%)\n\n",
                     rank_icon,
                     entry.rank,
                     entry.user_name,
+                    entry.user_label,
                     doubled_badge,
                     entry.exchange_type,
                     entry.current_balance,

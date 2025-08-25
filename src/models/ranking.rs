@@ -30,6 +30,7 @@ pub struct RankingEntry {
     pub rank: u32,
     pub is_doubled: bool, // 是否实现翻倍
     pub balance_history: Vec<BalanceHistoryPoint>, // 用于绘制图表
+    pub user_label: String, // 用户标签：交易大神、翻倍达人等
 }
 
 /// 余额历史点（用于图表）

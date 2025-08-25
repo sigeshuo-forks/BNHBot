@@ -106,7 +106,6 @@ impl DatabaseService {
                 recorded_date TEXT NOT NULL, -- YYYY-MM-DD格式
                 recorded_at TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users (id),
                 UNIQUE(user_id, recorded_date) -- 每个用户每天只能有一条记录
             )
             "#

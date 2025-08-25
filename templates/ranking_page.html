@@ -134,6 +134,17 @@
             margin-bottom: 5px;
             color: #333;
         }
+
+        .user-label {
+            font-size: 0.7em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 8px;
+            font-weight: normal;
+            white-space: nowrap;
+        }
         
         .user-info p {
             color: #6c757d;
@@ -710,8 +721,8 @@
                                 ${getRankIcon(entry.rank)}
                             </div>
                             <div class="user-info">
-                                <h3>${entry.user_name}</h3>
-                                <p style="font-family: monospace; color: #667eea; font-weight: 500;">${entry.user_id}</p>
+                                <h3>${entry.user_name} <span class="user-label">${entry.user_label}</span></h3>
+                                <p style="font-family: monospace; color: #667eea; font-weight: 500;">${maskUserId(entry.user_id)}</p>
                                 <small style="color: #666; font-size: 0.8em;">${getExchangeName(entry.exchange_type)}</small>
                             </div>
                         </div>
@@ -736,7 +747,7 @@
                             <div class="detail-grid">
                                 <div class="detail-item">
                                     <span class="detail-label">用户ID:</span>
-                                    <span class="detail-value">${entry.user_id}</span>
+                                    <span class="detail-value">${maskUserId(entry.user_id)}</span>
                                 </div>
                                 <div class="detail-item">
                                     <span class="detail-label">交易所:</span>
@@ -1155,10 +1166,24 @@
         function getExchangeName(exchange) {
             const names = {
                 'binance': '币安 Binance',
+                'Binance': '币安 Binance',
                 'okx': '欧易 OKX',
-                'weex': 'WEEX (已停用)'
+                'OKX': '欧易 OKX',
+                'weex': 'WEEX (已停用)',
+                'WEEX': 'WEEX (已停用)'
             };
-            return names[exchange.toLowerCase()] || exchange;
+            return names[exchange] || names[exchange.toLowerCase()] || exchange;
+        }
+
+        // 隐藏用户ID，只显示前后四位
+        function maskUserId(userId) {
+            if (!userId || userId.length <= 8) {
+                return userId;
+            }
+            const start = userId.substring(0, 4);
+            const end = userId.substring(userId.length - 4);
+            const middle = '*'.repeat(Math.max(0, userId.length - 8));
+            return start + middle + end;
         }
 
         function formatNumber(num) {
@@ -1385,7 +1410,7 @@
                                 </div>
                                 <div>
                                     <h4 style="margin: 0; color: #333;">${user.user_name}</h4>
-                                    <p style="margin: 2px 0; font-family: monospace; color: #667eea; font-size: 12px;">${user.user_id}</p>
+                                    <p style="margin: 2px 0; font-family: monospace; color: #667eea; font-size: 12px;">${maskUserId(user.user_id)}</p>
                                     <small style="color: #666;">${getExchangeName(user.exchange_type)}</small>
                                 </div>
                             </div>
