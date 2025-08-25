@@ -150,9 +150,207 @@
             color: #856404;
             font-size: 0.9em;
         }
+
+        /* 导航栏样式 */
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .navbar .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .navbar-brand {
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .navbar-nav {
+            display: flex;
+            gap: 20px;
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-1px);
+        }
+
+        .nav-link.active {
+            background: rgba(255,255,255,0.3);
+        }
+
+        @media (max-width: 768px) {
+            .navbar .nav-container {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .navbar-nav {
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 10px;
+            }
+        }
+
+        /* 预览确认框样式 */
+        .preview-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .preview-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .preview-header {
+            text-align: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .preview-header h3 {
+            color: #333;
+            margin: 0;
+            font-size: 1.5em;
+        }
+
+        .preview-item {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .preview-label {
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+
+        .preview-value {
+            color: #333;
+            font-family: monospace;
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            word-break: break-all;
+        }
+
+        .preview-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .preview-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: 120px;
+        }
+
+        .preview-btn.confirm {
+            background: #28a745;
+            color: white;
+        }
+
+        .preview-btn.confirm:hover {
+            background: #218838;
+            transform: translateY(-1px);
+        }
+
+        .preview-btn.cancel {
+            background: #6c757d;
+            color: white;
+        }
+
+        .preview-btn.cancel:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+        }
+
+        .preview-btn:disabled {
+            background: #e9ecef;
+            color: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .warning-text {
+            background: #fff3cd;
+            color: #856404;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border: 1px solid #ffeaa7;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="navbar-brand">
+                🤖 BNHBot
+            </a>
+            <ul class="navbar-nav">
+                <li><a href="/" class="nav-link">🏠 首页</a></li>
+                <li><a href="/register" class="nav-link active">📝 报名参赛</a></li>
+                <li><a href="/rankings" class="nav-link">🏆 排名榜</a></li>
+            </ul>
+        </div>
+    </nav>
+
     <div class="container">
         <div class="header">
             <h1>🤖 BNHBot</h1>
@@ -202,12 +400,12 @@
 
                 <div class="form-group">
                     <label for="secretKey">Secret Key <span class="required">*</span></label>
-                    <input type="password" id="secretKey" name="secretKey" required placeholder="请输入您的Secret Key">
+                    <input type="text" id="secretKey" name="secretKey" required placeholder="请输入您的Secret Key">
                 </div>
 
                 <div class="form-group" id="passphraseGroup" style="display: none;">
                     <label for="passphrase">Passphrase <span class="required">*</span></label>
-                    <input type="password" id="passphrase" name="passphrase" placeholder="请输入您的Passphrase">
+                    <input type="text" id="passphrase" name="passphrase" placeholder="请输入您的Passphrase">
                 </div>
 
                 <button type="submit" class="submit-btn" id="submitBtn">
@@ -215,6 +413,26 @@
                     <span id="loadingText" style="display: none;">提交中...</span>
                 </button>
             </form>
+
+            <!-- 预览确认框 -->
+            <div id="previewModal" class="preview-modal">
+                <div class="preview-content">
+                    <div class="preview-header">
+                        <h3>📋 报名信息确认</h3>
+                    </div>
+                    
+                    <div class="warning-text">
+                        ⚠️ 请仔细核对以下信息，确认无误后再提交。API信息将用于获取您的账户余额数据。
+                    </div>
+                    
+                    <div id="previewData"></div>
+                    
+                    <div class="preview-buttons">
+                        <button class="preview-btn cancel" onclick="closePreview()">❌ 取消</button>
+                        <button class="preview-btn confirm" onclick="confirmSubmission()" id="confirmBtn">✅ 确认提交</button>
+                    </div>
+                </div>
+            </div>
 
             <div class="success-message" id="successMessage">
                 <h3>✅ 报名成功！</h3>
@@ -258,27 +476,25 @@
             }
         });
 
+        // 防重复提交和预览功能
+        let lastSubmitTime = 0;
+        let currentFormData = null;
+
         // 表单提交处理
-        document.getElementById('registrationForm').addEventListener('submit', async function(e) {
+        document.getElementById('registrationForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const submitBtn = document.getElementById('submitBtn');
-            const submitText = document.getElementById('submitText');
-            const loadingText = document.getElementById('loadingText');
-            const successMessage = document.getElementById('successMessage');
-            const errorMessage = document.getElementById('errorMessage');
-            
-            // 显示加载状态
-            submitBtn.disabled = true;
-            submitText.style.display = 'none';
-            loadingText.style.display = 'inline';
-            
-            // 隐藏之前的消息
-            successMessage.style.display = 'none';
-            errorMessage.style.display = 'none';
+            // 检查60秒防重复提交
+            const now = Date.now();
+            const timeSinceLastSubmit = now - lastSubmitTime;
+            if (timeSinceLastSubmit < 60000) {
+                const remainingTime = Math.ceil((60000 - timeSinceLastSubmit) / 1000);
+                alert(`⏰ 请等待 ${remainingTime} 秒后再次提交`);
+                return;
+            }
             
             // 收集表单数据
-            const formData = {
+            currentFormData = {
                 user_name: document.getElementById('userName').value,
                 exchange: document.getElementById('exchange').value,
                 api_key: document.getElementById('apiKey').value,
@@ -286,36 +502,140 @@
                 passphrase: document.getElementById('passphrase').value
             };
             
+            // 显示预览确认框
+            showPreview();
+        });
+
+        function showPreview() {
+            const previewData = document.getElementById('previewData');
+            const exchangeNames = {
+                'binance': '币安 (Binance)',
+                'okx': '欧易 (OKX)',
+                'weex': 'WEEX'
+            };
+            
+            let html = '';
+            
+            // 用户名
+            html += `
+                <div class="preview-item">
+                    <div class="preview-label">👤 用户名</div>
+                    <div class="preview-value">${currentFormData.user_name}</div>
+                </div>
+            `;
+            
+            // 交易所
+            html += `
+                <div class="preview-item">
+                    <div class="preview-label">🏢 交易所</div>
+                    <div class="preview-value">${exchangeNames[currentFormData.exchange] || currentFormData.exchange}</div>
+                </div>
+            `;
+            
+            // API Key
+            html += `
+                <div class="preview-item">
+                    <div class="preview-label">🔑 API Key</div>
+                    <div class="preview-value">${maskApiKey(currentFormData.api_key)}</div>
+                </div>
+            `;
+            
+            // Secret Key
+            html += `
+                <div class="preview-item">
+                    <div class="preview-label">🔐 Secret Key</div>
+                    <div class="preview-value">${maskApiKey(currentFormData.secret_key)}</div>
+                </div>
+            `;
+            
+            // Passphrase (如果有)
+            if (currentFormData.passphrase && currentFormData.exchange === 'okx') {
+                html += `
+                    <div class="preview-item">
+                        <div class="preview-label">🔒 Passphrase</div>
+                        <div class="preview-value">${maskApiKey(currentFormData.passphrase)}</div>
+                    </div>
+                `;
+            }
+            
+            previewData.innerHTML = html;
+            document.getElementById('previewModal').style.display = 'block';
+        }
+
+        function maskApiKey(key) {
+            if (!key || key.length <= 8) return key;
+            const start = key.substring(0, 4);
+            const end = key.substring(key.length - 4);
+            const middle = '*'.repeat(Math.min(key.length - 8, 20));
+            return `${start}${middle}${end}`;
+        }
+
+        function closePreview() {
+            document.getElementById('previewModal').style.display = 'none';
+        }
+
+        async function confirmSubmission() {
+            const confirmBtn = document.getElementById('confirmBtn');
+            const originalText = confirmBtn.textContent;
+            
             try {
+                // 禁用确认按钮
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = '⏳ 提交中...';
+                
+                // 记录提交时间
+                lastSubmitTime = Date.now();
+                
                 const response = await fetch('/api/register', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(formData)
+                    body: JSON.stringify(currentFormData)
                 });
                 
                 const result = await response.json();
                 
+                // 关闭预览框
+                closePreview();
+                
+                const successMessage = document.getElementById('successMessage');
+                const errorMessage = document.getElementById('errorMessage');
+                
+                // 隐藏之前的消息
+                successMessage.style.display = 'none';
+                errorMessage.style.display = 'none';
+                
                 if (response.ok) {
-                    // 成功
                     successMessage.style.display = 'block';
                     document.getElementById('registrationForm').reset();
                     document.getElementById('passphraseGroup').style.display = 'none';
+                    // 滚动到成功消息
+                    successMessage.scrollIntoView({ behavior: 'smooth' });
                 } else {
-                    // 失败
                     errorMessage.style.display = 'block';
                     document.getElementById('errorText').textContent = result.message || '提交失败，请重试';
+                    // 滚动到错误消息
+                    errorMessage.scrollIntoView({ behavior: 'smooth' });
                 }
             } catch (error) {
-                // 网络错误
+                console.error('提交失败:', error);
+                closePreview();
+                const errorMessage = document.getElementById('errorMessage');
                 errorMessage.style.display = 'block';
                 document.getElementById('errorText').textContent = '网络错误，请检查网络连接后重试';
+                errorMessage.scrollIntoView({ behavior: 'smooth' });
             } finally {
                 // 恢复按钮状态
-                submitBtn.disabled = false;
-                submitText.style.display = 'inline';
-                loadingText.style.display = 'none';
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = originalText;
+            }
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('previewModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closePreview();
             }
         });
     </script>

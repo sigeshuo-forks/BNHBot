@@ -426,7 +426,8 @@
                 <button class="btn btn-primary" onclick="loadRegistrations()">🔍 搜索</button>
             </div>
             <button class="btn btn-primary" onclick="loadRegistrations()">🔄 刷新</button>
-            <button class="btn" onclick="toggleMockMode()" id="mockToggleBtn" style="background: #28a745; color: white; margin-left: 10px;">📊 演示模式: 关闭</button>
+                            <button class="btn" onclick="toggleMockMode()" id="mockToggleBtn" style="background: #28a745; color: white; margin-left: 10px;">📊 演示模式: 关闭</button>
+                <button class="btn" onclick="sendRankingToDingTalk()" id="sendRankingBtn" style="background: #17a2b8; color: white; margin-left: 10px;">📢 发送排名到钉钉</button>
         </div>
 
         <div class="table-container">
@@ -1284,6 +1285,40 @@
         }
 
         // 在页面加载时也加载Mock模式状态
+        async function sendRankingToDingTalk() {
+            const sendRankingBtn = document.getElementById('sendRankingBtn');
+            const originalText = sendRankingBtn.textContent;
+            
+            try {
+                sendRankingBtn.disabled = true;
+                sendRankingBtn.textContent = '📤 发送中...';
+                sendRankingBtn.style.background = '#6c757d';
+                
+                const response = await fetch('/api/admin/send-ranking', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    alert(`✅ 排名发送成功！\n\n${result.message}`);
+                } else {
+                    alert(`❌ 发送失败：${result.message || '未知错误'}`);
+                }
+            } catch (error) {
+                console.error('发送排名失败:', error);
+                alert('❌ 发送失败：网络错误');
+            } finally {
+                sendRankingBtn.disabled = false;
+                sendRankingBtn.textContent = originalText;
+                sendRankingBtn.style.background = '#17a2b8';
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             loadMockModeStatus();
         });

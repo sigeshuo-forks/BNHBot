@@ -311,7 +311,8 @@ async fn start_web_server(
         // 排名相关的管理API路由
         let ranking_admin_routes = Router::new()
             .route("/api/admin/collect-balances", post(handlers::ranking::trigger_balance_collection))
-            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone(), ranking_service.clone()))
+            .route("/api/admin/send-ranking", post(handlers::admin_ranking::send_ranking_to_dingtalk))
+            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone(), ranking_service.clone(), dingtalk_bot.clone()))
             .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
 
         // 管理页面路由（不需要服务器端认证，由前端JavaScript处理）
