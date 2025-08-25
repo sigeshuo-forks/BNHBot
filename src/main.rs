@@ -273,7 +273,7 @@ async fn start_web_server(
         dingtalk_bot.clone(),
         ranking_service.clone(),
     );
-            let webhook_handler = DingTalkWebhookHandler::new(database, dingtalk_bot.clone(), config.web_base_url.clone());
+            let webhook_handler = DingTalkWebhookHandler::new(database.clone(), dingtalk_bot.clone(), config.web_base_url.clone());
     
             // 基础公开路由
         let basic_routes = Router::new()
@@ -282,6 +282,7 @@ async fn start_web_server(
             .route("/rankings", get(serve_ranking_page))
             .route("/admin/login", get(serve_admin_login_page))
             .route("/api/register", post(handlers::registration::handle_registration))
+            .route("/api/check-username", get(handlers::username_check::check_username_availability).with_state(database.clone()))
             .route("/api/mock-mode", get(handlers::mock_mode::get_mock_mode_public))
             .route("/api/admin/login", post(handlers::admin::admin_login))
             .route("/api/dingtalk/webhook", post(move |payload| handle_dingtalk_webhook(payload, webhook_handler.clone())))

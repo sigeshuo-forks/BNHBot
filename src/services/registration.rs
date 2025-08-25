@@ -36,6 +36,11 @@ impl RegistrationService {
             anyhow::bail!("用户名称不能为空");
         }
 
+        // 检查用户名是否已存在
+        if self.database.is_username_exists(&request.user_name).await? {
+            anyhow::bail!("用户名 '{}' 已存在，请选择其他用户名", request.user_name);
+        }
+
         // 验证API信息
         self.validate_api_info(&request)?;
 

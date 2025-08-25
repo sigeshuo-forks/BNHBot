@@ -292,6 +292,18 @@ impl DatabaseService {
     }
 
     // 报名记录管理
+    /// 检查用户名是否已存在
+    pub async fn is_username_exists(&self, user_name: &str) -> Result<bool> {
+        let count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM registrations WHERE user_name = ?"
+        )
+        .bind(user_name)
+        .fetch_one(&self.pool)
+        .await?;
+        
+        Ok(count.0 > 0)
+    }
+
     pub async fn create_registration(&self, registration: &Registration) -> Result<()> {
         sqlx::query(
             r#"
