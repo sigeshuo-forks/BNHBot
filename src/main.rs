@@ -284,7 +284,7 @@ async fn start_web_server(
             .route("/api/register", post(handlers::registration::handle_registration))
             .route("/api/check-username", get(handlers::username_check::check_username_availability).with_state(database.clone()))
             .route("/api/mock-mode", get(handlers::mock_mode::get_mock_mode_public))
-            .route("/api/admin/login", post(handlers::admin::admin_login))
+
             .route("/api/dingtalk/webhook", post(move |payload| handle_dingtalk_webhook(payload, webhook_handler.clone())))
             .route("/api/dingtalk/test", get(serve_webhook_test_page))
             .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone()));
@@ -300,14 +300,24 @@ async fn start_web_server(
             .route("/api/mock/rankings", get(handlers::mock_ranking::get_mock_rankings))
             .route("/api/mock/rankings/period", get(handlers::mock_ranking::get_mock_period_rankings));
 
-        // 基础管理API路由
-        let basic_admin_routes = Router::new()
+        // 需要完整状态的管理API路由（包含钉钉通知功能）
+        let full_state_admin_routes = Router::new()
             .route("/api/admin/registrations", get(handlers::admin::get_all_registrations))
             .route("/api/admin/stats", get(handlers::admin::get_registration_stats))
             .route("/api/admin/registrations/:id/review", post(handlers::admin::review_registration))
             .route("/api/admin/registrations/:id", delete(handlers::admin::delete_registration))
             .route("/api/admin/registrations/:id/balance", get(handlers::admin::get_registration_balance))
             .route("/api/admin/registrations/:id/test-balance", get(handlers::admin::test_registration_balance))
+            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone(), dingtalk_bot.clone(), database.clone()))
+            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+
+        // 管理员登录路由（无需认证）
+        let admin_login_routes = Router::new()
+            .route("/api/admin/login", post(handlers::admin::admin_login))
+            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone()));
+
+        // 基础管理API路由（需要认证但不需要钉钉和数据库）
+        let basic_admin_routes = Router::new()
             .route("/api/admin/registrations/:id/summary", get(handlers::admin_summary::get_registration_summary))
             .route("/api/admin/mock-mode", get(handlers::mock_mode::get_mock_mode))
             .route("/api/admin/mock-mode", post(handlers::mock_mode::set_mock_mode))
@@ -342,6 +352,8 @@ async fn start_web_server(
             .merge(basic_routes)
             .merge(ranking_routes)
             .merge(mock_routes)
+            .merge(admin_login_routes)
+            .merge(full_state_admin_routes)
             .merge(basic_admin_routes)
             .merge(ranking_admin_routes)
             .merge(manual_ranking_admin_routes)

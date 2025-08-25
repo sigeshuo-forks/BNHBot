@@ -80,7 +80,7 @@ pub async fn admin_login(
 
 /// 获取所有报名记录
 pub async fn get_all_registrations(
-    State((registration_service, _auth_service, _exchange_service)): State<(RegistrationService, AuthService, ExchangeService)>,
+    State((registration_service, _auth_service, _exchange_service, _dingtalk_bot, _database)): State<(RegistrationService, AuthService, ExchangeService, crate::services::DingTalkBot, crate::services::DatabaseService)>,
 ) -> Result<Json<Vec<Registration>>, StatusCode> {
     match registration_service.get_all_registrations().await {
         Ok(registrations) => Ok(Json(registrations)),
@@ -93,7 +93,7 @@ pub async fn get_all_registrations(
 
 /// 获取报名统计
 pub async fn get_registration_stats(
-    State((registration_service, _auth_service, _exchange_service)): State<(RegistrationService, AuthService, ExchangeService)>,
+    State((registration_service, _auth_service, _exchange_service, _dingtalk_bot, _database)): State<(RegistrationService, AuthService, ExchangeService, crate::services::DingTalkBot, crate::services::DatabaseService)>,
 ) -> Result<Json<RegistrationStats>, StatusCode> {
     match registration_service.get_registration_stats().await {
         Ok(stats) => Ok(Json(stats)),
@@ -106,7 +106,7 @@ pub async fn get_registration_stats(
 
 /// 审核报名
 pub async fn review_registration(
-    State((registration_service, _auth_service, _exchange_service)): State<(RegistrationService, AuthService, ExchangeService)>,
+    State((registration_service, _auth_service, _exchange_service, dingtalk_bot, database)): State<(RegistrationService, AuthService, ExchangeService, crate::services::DingTalkBot, crate::services::DatabaseService)>,
     Path(registration_id): Path<String>,
     Json(request): Json<ReviewRequest>,
 ) -> Result<Json<ReviewResponse>, StatusCode> {
@@ -133,12 +133,44 @@ pub async fn review_registration(
         }
     };
 
+    // 获取报名信息（用于通知）
+    let registration_info = match database.get_registration_by_id(reg_id).await {
+        Ok(Some(reg)) => Some(reg),
+        Ok(None) => {
+            return Ok(Json(ReviewResponse {
+                success: false,
+                message: "报名记录不存在".to_string(),
+            }));
+        }
+        Err(e) => {
+            log::error!("获取报名信息失败: {}", e);
+            return Ok(Json(ReviewResponse {
+                success: false,
+                message: "获取报名信息失败".to_string(),
+            }));
+        }
+    };
+
     // 执行审核
     match registration_service.review_registration(reg_id, status, request.admin_notes).await {
-        Ok(_) => Ok(Json(ReviewResponse {
-            success: true,
-            message: "审核成功".to_string(),
-        })),
+        Ok(_) => {
+            // 如果审核通过，发送钉钉通知
+            if status == RegistrationStatus::Approved {
+                if let Some(reg) = registration_info {
+                    tokio::spawn(crate::handlers::approval_notification::send_approval_notification(
+                        dingtalk_bot,
+                        database,
+                        reg.user_name,
+                        reg.exchange.to_string(),
+                    ));
+                }
+            }
+            
+            Ok(Json(ReviewResponse {
+                success: true,
+                message: "审核成功".to_string(),
+            }))
+        },
         Err(e) => {
             log::error!("审核失败: {}", e);
             Ok(Json(ReviewResponse {
@@ -151,7 +183,7 @@ pub async fn review_registration(
 
 /// 删除报名
 pub async fn delete_registration(
-    State((registration_service, _auth_service, _exchange_service)): State<(RegistrationService, AuthService, ExchangeService)>,
+    State((registration_service, _auth_service, _exchange_service, _dingtalk_bot, _database)): State<(RegistrationService, AuthService, ExchangeService, crate::services::DingTalkBot, crate::services::DatabaseService)>,
     Path(registration_id): Path<String>,
 ) -> Result<Json<DeleteResponse>, StatusCode> {
     // 解析报名ID
@@ -183,7 +215,7 @@ pub async fn delete_registration(
 
 /// 获取账户余额
 pub async fn get_registration_balance(
-    State((registration_service, _auth_service, exchange_service)): State<(RegistrationService, AuthService, ExchangeService)>,
+    State((registration_service, _auth_service, exchange_service, _dingtalk_bot, _database)): State<(RegistrationService, AuthService, ExchangeService, crate::services::DingTalkBot, crate::services::DatabaseService)>,
     Path(registration_id): Path<String>,
 ) -> Result<Json<BalanceResponse>, StatusCode> {
     // 解析报名ID
@@ -282,7 +314,7 @@ pub async fn get_registration_balance(
 
 /// 测试账户余额（审核前）
 pub async fn test_registration_balance(
-    State((registration_service, _auth_service, exchange_service)): State<(RegistrationService, AuthService, ExchangeService)>,
+    State((registration_service, _auth_service, exchange_service, _dingtalk_bot, _database)): State<(RegistrationService, AuthService, ExchangeService, crate::services::DingTalkBot, crate::services::DatabaseService)>,
     Path(registration_id): Path<String>,
 ) -> Result<Json<BalanceResponse>, StatusCode> {
     // 解析报名ID
