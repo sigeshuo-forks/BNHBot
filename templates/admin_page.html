@@ -191,6 +191,23 @@
             background: #f8d7da;
             color: #721c24;
         }
+
+        .identity-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .identity-student {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .identity-regular {
+            background: #e9ecef;
+            color: #495057;
+        }
         
         .exchange-badge {
             padding: 3px 8px;
@@ -446,6 +463,7 @@
                     <tr>
                         <th>ID</th>
                         <th>用户名称</th>
+                        <th>身份</th>
                         <th>交易所</th>
                         <th>API Key</th>
                         <th>状态</th>
@@ -693,6 +711,7 @@
                 <tr>
                     <td>${reg.id.substring(0, 8)}...</td>
                     <td><strong>${reg.user_name}</strong></td>
+                    <td><span class="identity-badge identity-${(reg.identity || 'Regular').toLowerCase()}">${getIdentityText(reg.identity || 'Regular')}</span></td>
                     <td><span class="exchange-badge exchange-${reg.exchange.toLowerCase()}">${getExchangeName(reg.exchange)}</span></td>
                     <td>${reg.api_key.substring(0, 10)}***</td>
                     <td><span class="status-badge status-${reg.status.toLowerCase()}">${getStatusText(reg.status)}</span></td>
@@ -1049,6 +1068,14 @@
                 'rejected': '已拒绝'
             };
             return texts[status.toLowerCase()] || status;
+        }
+
+        function getIdentityText(identity) {
+            const texts = {
+                'student': '学员 🎓',
+                'regular': '普通用户'
+            };
+            return texts[identity.toLowerCase()] || '普通用户';
         }
 
         function formatDate(dateString) {

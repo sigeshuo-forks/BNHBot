@@ -409,6 +409,17 @@
                     </div>
 
                     <div class="form-group">
+                        <label for="identity">身份类型 <span class="required">*</span></label>
+                        <select id="identity" name="identity" required>
+                            <option value="regular">普通用户</option>
+                            <option value="student">学员</option>
+                        </select>
+                        <div class="form-hint">
+                            💡 请选择您的身份类型，学员将获得特殊标识
+                        </div>
+                    </div>
+
+                    <div class="form-group">
                         <label for="exchange">选择交易所 <span class="required">*</span></label>
                         <select id="exchange" name="exchange" required>
                             <option value="">请选择交易所</option>
@@ -587,6 +598,7 @@
             // 收集表单数据
             currentFormData = {
                 user_name: document.getElementById('userName').value,
+                identity: document.getElementById('identity').value,
                 exchange: document.getElementById('exchange').value,
                 api_key: document.getElementById('apiKey').value,
                 secret_key: document.getElementById('secretKey').value,
@@ -612,6 +624,18 @@
                 <div class="preview-item">
                     <div class="preview-label">👤 用户名</div>
                     <div class="preview-value">${currentFormData.user_name}</div>
+                </div>
+            `;
+            
+            // 身份类型
+            const identityNames = {
+                'regular': '普通用户',
+                'student': '学员 🎓'
+            };
+            html += `
+                <div class="preview-item">
+                    <div class="preview-label">🏷️ 身份类型</div>
+                    <div class="preview-value">${identityNames[currentFormData.identity] || currentFormData.identity}</div>
                 </div>
             `;
             

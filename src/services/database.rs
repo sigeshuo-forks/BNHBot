@@ -86,12 +86,20 @@ impl DatabaseService {
                 passphrase TEXT,
                 status TEXT NOT NULL DEFAULT 'Pending',
                 admin_notes TEXT,
+                identity TEXT NOT NULL DEFAULT 'Regular',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 reviewed_at TEXT
             )
             "#
         ).execute(pool).await?;
+
+        // 检查并添加identity列（用于向后兼容）
+        let _ = sqlx::query(
+            r#"
+            ALTER TABLE registrations ADD COLUMN identity TEXT NOT NULL DEFAULT 'Regular'
+            "#
+        ).execute(pool).await; // 忽略错误，因为列可能已经存在
 
         // 余额历史记录表（用于排名系统）
         sqlx::query(
@@ -309,8 +317,8 @@ impl DatabaseService {
             r#"
             INSERT INTO registrations (
                 id, user_name, exchange_type, api_key, secret_key, passphrase,
-                status, admin_notes, created_at, updated_at, reviewed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                status, admin_notes, identity, created_at, updated_at, reviewed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#
         )
         .bind(registration.id.to_string())
@@ -321,6 +329,7 @@ impl DatabaseService {
         .bind(&registration.passphrase)
         .bind(registration.status.to_string())
         .bind(&registration.admin_notes)
+        .bind(registration.identity.to_string())
         .bind(registration.created_at.to_rfc3339())
         .bind(registration.updated_at.to_rfc3339())
         .bind(registration.reviewed_at.map(|dt| dt.to_rfc3339()))
@@ -330,6 +339,51 @@ impl DatabaseService {
         Ok(())
     }
 
+    /// 从数据库行解析注册记录的辅助函数
+    fn parse_registration_from_row(&self, row: &sqlx::sqlite::SqliteRow) -> Result<Registration> {
+        use sqlx::Row;
+        
+        let exchange_type_str = row.get::<String, _>("exchange_type");
+        let exchange_type = match exchange_type_str.as_str() {
+            "Binance" => RegistrationExchangeType::Binance,
+            "OKX" => RegistrationExchangeType::OKX,
+            "WEEX" => RegistrationExchangeType::WEEX,
+            _ => return Err(anyhow::anyhow!("未知的交易所类型: {}", exchange_type_str)),
+        };
+
+        let status_str = row.get::<String, _>("status");
+        let status = match status_str.as_str() {
+            "Pending" => RegistrationStatus::Pending,
+            "Approved" => RegistrationStatus::Approved,
+            "Rejected" => RegistrationStatus::Rejected,
+            _ => return Err(anyhow::anyhow!("未知的状态: {}", status_str)),
+        };
+
+        let identity_str = row.get::<Option<String>, _>("identity").unwrap_or_else(|| "Regular".to_string());
+        let identity = match identity_str.as_str() {
+            "Student" => crate::models::registration::UserIdentity::Student,
+            "Regular" => crate::models::registration::UserIdentity::Regular,
+            _ => crate::models::registration::UserIdentity::Regular, // 默认为普通用户
+        };
+
+        Ok(Registration {
+            id: Uuid::parse_str(&row.get::<String, _>("id"))?,
+            user_name: row.get("user_name"),
+            exchange: exchange_type,
+            api_key: row.get("api_key"),
+            secret_key: row.get("secret_key"),
+            passphrase: row.get("passphrase"),
+            status,
+            admin_notes: row.get("admin_notes"),
+            identity,
+            created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
+            updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&Utc),
+            reviewed_at: row.get::<Option<String>, _>("reviewed_at")
+                .map(|s: String| DateTime::parse_from_rfc3339(&s).map(|dt| dt.with_timezone(&Utc)))
+                .transpose()?,
+        })
+    }
+
     pub async fn get_all_registrations(&self) -> Result<Vec<Registration>> {
         let rows = sqlx::query("SELECT * FROM registrations ORDER BY created_at DESC")
             .fetch_all(&self.pool)
@@ -337,37 +391,7 @@ impl DatabaseService {
 
         let mut registrations = Vec::new();
         for row in rows {
-            let exchange_type_str = row.get::<String, _>("exchange_type");
-            let exchange_type = match exchange_type_str.as_str() {
-                "Binance" => RegistrationExchangeType::Binance,
-                "OKX" => RegistrationExchangeType::OKX,
-                "WEEX" => RegistrationExchangeType::WEEX,
-                _ => return Err(anyhow::anyhow!("未知的交易所类型: {}", exchange_type_str)),
-            };
-
-            let status_str = row.get::<String, _>("status");
-            let status = match status_str.as_str() {
-                "Pending" => RegistrationStatus::Pending,
-                "Approved" => RegistrationStatus::Approved,
-                "Rejected" => RegistrationStatus::Rejected,
-                _ => return Err(anyhow::anyhow!("未知的状态: {}", status_str)),
-            };
-
-            registrations.push(Registration {
-                id: Uuid::parse_str(&row.get::<String, _>("id"))?,
-                user_name: row.get("user_name"),
-                exchange: exchange_type,
-                api_key: row.get("api_key"),
-                secret_key: row.get("secret_key"),
-                passphrase: row.get("passphrase"),
-                status,
-                admin_notes: row.get("admin_notes"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&Utc),
-                reviewed_at: row.get::<Option<String>, _>("reviewed_at")
-                    .map(|s| DateTime::parse_from_rfc3339(&s).map(|dt| dt.with_timezone(&Utc)))
-                    .transpose()?,
-            });
+            registrations.push(self.parse_registration_from_row(&row)?);
         }
 
         Ok(registrations)
@@ -380,37 +404,7 @@ impl DatabaseService {
             .await?;
 
         if let Some(row) = row {
-            let exchange_type_str = row.get::<String, _>("exchange_type");
-            let exchange_type = match exchange_type_str.as_str() {
-                "Binance" => RegistrationExchangeType::Binance,
-                "OKX" => RegistrationExchangeType::OKX,
-                "WEEX" => RegistrationExchangeType::WEEX,
-                _ => return Err(anyhow::anyhow!("未知的交易所类型: {}", exchange_type_str)),
-            };
-
-            let status_str = row.get::<String, _>("status");
-            let status = match status_str.as_str() {
-                "Pending" => RegistrationStatus::Pending,
-                "Approved" => RegistrationStatus::Approved,
-                "Rejected" => RegistrationStatus::Rejected,
-                _ => return Err(anyhow::anyhow!("未知的状态: {}", status_str)),
-            };
-
-            Ok(Some(Registration {
-                id: Uuid::parse_str(&row.get::<String, _>("id"))?,
-                user_name: row.get("user_name"),
-                exchange: exchange_type,
-                api_key: row.get("api_key"),
-                secret_key: row.get("secret_key"),
-                passphrase: row.get("passphrase"),
-                status,
-                admin_notes: row.get("admin_notes"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&Utc),
-                reviewed_at: row.get::<Option<String>, _>("reviewed_at")
-                    .map(|s| DateTime::parse_from_rfc3339(&s).map(|dt| dt.with_timezone(&Utc)))
-                    .transpose()?,
-            }))
+            Ok(Some(self.parse_registration_from_row(&row)?))
         } else {
             Ok(None)
         }
@@ -421,7 +415,7 @@ impl DatabaseService {
             r#"
             UPDATE registrations SET
                 user_name = ?, exchange_type = ?, api_key = ?, secret_key = ?, passphrase = ?,
-                status = ?, admin_notes = ?, updated_at = ?, reviewed_at = ?
+                status = ?, admin_notes = ?, identity = ?, updated_at = ?, reviewed_at = ?
             WHERE id = ?
             "#
         )
@@ -432,6 +426,7 @@ impl DatabaseService {
         .bind(&registration.passphrase)
         .bind(registration.status.to_string())
         .bind(&registration.admin_notes)
+        .bind(registration.identity.to_string())
         .bind(registration.updated_at.to_rfc3339())
         .bind(registration.reviewed_at.map(|dt| dt.to_rfc3339()))
         .bind(registration.id.to_string())
@@ -458,29 +453,7 @@ impl DatabaseService {
 
         let mut registrations = Vec::new();
         for row in rows {
-            let exchange_type_str = row.get::<String, _>("exchange_type");
-            let exchange_type = match exchange_type_str.as_str() {
-                "Binance" => RegistrationExchangeType::Binance,
-                "OKX" => RegistrationExchangeType::OKX,
-                "WEEX" => RegistrationExchangeType::WEEX,
-                _ => return Err(anyhow::anyhow!("未知的交易所类型: {}", exchange_type_str)),
-            };
-
-            registrations.push(Registration {
-                id: Uuid::parse_str(&row.get::<String, _>("id"))?,
-                user_name: row.get("user_name"),
-                exchange: exchange_type,
-                api_key: row.get("api_key"),
-                secret_key: row.get("secret_key"),
-                passphrase: row.get("passphrase"),
-                status,
-                admin_notes: row.get("admin_notes"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&Utc),
-                reviewed_at: row.get::<Option<String>, _>("reviewed_at")
-                    .map(|s| DateTime::parse_from_rfc3339(&s).map(|dt| dt.with_timezone(&Utc)))
-                    .transpose()?,
-            });
+            registrations.push(self.parse_registration_from_row(&row)?);
         }
 
         Ok(registrations)
@@ -624,7 +597,7 @@ impl DatabaseService {
         let row = sqlx::query(
             r#"
             SELECT id, user_name, exchange_type, api_key, secret_key, passphrase,
-                   status, admin_notes, created_at, updated_at, reviewed_at
+                   status, admin_notes, identity, created_at, updated_at, reviewed_at
             FROM registrations 
             WHERE user_name = ? AND exchange_type = ? AND status = 'Approved'
             LIMIT 1
@@ -635,37 +608,7 @@ impl DatabaseService {
         .fetch_one(&self.pool)
         .await?;
 
-        let status_str = row.get::<String, _>("status");
-        let status = match status_str.as_str() {
-            "Pending" => RegistrationStatus::Pending,
-            "Approved" => RegistrationStatus::Approved,
-            "Rejected" => RegistrationStatus::Rejected,
-            _ => return Err(anyhow::anyhow!("未知的状态: {}", status_str)),
-        };
-
-        let exchange_type_str = row.get::<String, _>("exchange_type");
-        let exchange_type = match exchange_type_str.as_str() {
-            "Binance" | "binance" => RegistrationExchangeType::Binance,
-            "OKX" | "okx" => RegistrationExchangeType::OKX,
-            "WEEX" | "weex" => RegistrationExchangeType::WEEX,
-            _ => return Err(anyhow::anyhow!("未知的交易所类型: {}", exchange_type_str)),
-        };
-
-        Ok(Registration {
-            id: Uuid::parse_str(&row.get::<String, _>("id"))?,
-            user_name: row.get("user_name"),
-            exchange: exchange_type,
-            api_key: row.get("api_key"),
-            secret_key: row.get("secret_key"),
-            passphrase: row.get("passphrase"),
-            status,
-            admin_notes: row.get("admin_notes"),
-            created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
-            updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&Utc),
-            reviewed_at: row.get::<Option<String>, _>("reviewed_at")
-                .map(|s| DateTime::parse_from_rfc3339(&s).map(|dt| dt.with_timezone(&Utc)))
-                .transpose()?,
-        })
+        self.parse_registration_from_row(&row)
     }
 }
 

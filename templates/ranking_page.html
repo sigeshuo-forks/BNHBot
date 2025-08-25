@@ -218,6 +218,24 @@
             background: linear-gradient(135deg, #feca57, #ff9ff3);
             color: white;
         }
+
+        .identity-badge {
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        .identity-student {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .identity-regular {
+            background: #e9ecef;
+            color: #495057;
+        }
         
         .ranking-details {
             padding: 0 20px 20px;
@@ -721,7 +739,7 @@
                                 ${getRankIcon(entry.rank)}
                             </div>
                             <div class="user-info">
-                                <h3>${entry.user_name} <span class="user-label">${entry.user_label}</span></h3>
+                                <h3>${entry.user_name} <span class="user-label">${entry.user_label}</span><span class="identity-badge identity-${(entry.identity || 'Regular').toLowerCase()}">${getIdentityText(entry.identity || 'Regular')}</span></h3>
                                 <p style="font-family: monospace; color: #667eea; font-weight: 500;">${maskUserId(entry.user_id)}</p>
                                 <small style="color: #666; font-size: 0.8em;">${getExchangeName(entry.exchange_type)}</small>
                             </div>
@@ -1173,6 +1191,14 @@
                 'WEEX': 'WEEX (已停用)'
             };
             return names[exchange] || names[exchange.toLowerCase()] || exchange;
+        }
+
+        function getIdentityText(identity) {
+            const texts = {
+                'student': '学员 🎓',
+                'regular': '普通用户'
+            };
+            return texts[identity.toLowerCase()] || '普通用户';
         }
 
         // 隐藏用户ID，只显示前后四位

@@ -44,6 +44,12 @@ impl RegistrationService {
         // 验证API信息
         self.validate_api_info(&request)?;
 
+        // 解析身份类型
+        let identity = match request.identity.as_deref().unwrap_or("regular").to_lowercase().as_str() {
+            "student" => crate::models::registration::UserIdentity::Student,
+            "regular" | _ => crate::models::registration::UserIdentity::Regular,
+        };
+
         // 创建报名记录
         let registration = Registration {
             id,
@@ -54,6 +60,7 @@ impl RegistrationService {
             passphrase: request.passphrase,
             status: RegistrationStatus::Pending,
             admin_notes: None,
+            identity,
             created_at: now,
             updated_at: now,
             reviewed_at: None,

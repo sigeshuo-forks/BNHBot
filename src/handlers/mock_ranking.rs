@@ -64,6 +64,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
                 BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(125000, 2) },
             ],
             user_label: "🚀 翻倍达人".to_string(),
+            identity: "Student".to_string(),
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440007").unwrap(),
@@ -84,6 +85,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
                 BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(32000, 2) },
             ],
             user_label: "🚀 翻倍达人".to_string(),
+            identity: "Regular".to_string(),
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440002").unwrap(),
@@ -104,6 +106,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
                 BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(98000, 2) },
             ],
             user_label: "💎 稳健投资者".to_string(),
+            identity: "Regular".to_string(),
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440004").unwrap(),
@@ -124,6 +127,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
                 BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(68000, 2) },
             ],
             user_label: "💎 稳健投资者".to_string(),
+            identity: "Student".to_string(),
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440005").unwrap(),
@@ -144,6 +148,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
                 BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(52000, 2) },
             ],
             user_label: "💎 稳健投资者".to_string(),
+            identity: "Student".to_string(),
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440003").unwrap(),
@@ -164,6 +169,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
                 BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(75000, 2) },
             ],
             user_label: "🌱 币圈新手".to_string(),
+            identity: "Student".to_string(),
         },
         RankingEntry {
             user_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440006").unwrap(),
@@ -184,6 +190,7 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
                 BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(35000, 2) },
             ],
             user_label: "📉 追涨杀跌王".to_string(),
+            identity: "Regular".to_string(),
         },
     ];
 

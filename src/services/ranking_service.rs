@@ -180,6 +180,15 @@ impl RankingService {
                 &user_history
             );
 
+            // 获取用户身份信息
+            let identity = match self.database.get_registration_by_user_and_exchange(
+                &user_history[0].user_name, 
+                &user_history[0].exchange_type
+            ).await {
+                Ok(registration) => registration.identity.to_string(),
+                Err(_) => "Regular".to_string(), // 默认为普通用户
+            };
+
             rankings.push(RankingEntry {
                 user_id: user_history[0].user_id,
                 user_name: user_history[0].user_name.clone(),
@@ -192,6 +201,7 @@ impl RankingService {
                 is_doubled,
                 balance_history,
                 user_label,
+                identity,
             });
         }
 

@@ -28,6 +28,28 @@ impl std::fmt::Display for RegistrationStatus {
 
 
 
+/// 用户身份类型
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum UserIdentity {
+    Student,    // 学员
+    Regular,    // 普通用户
+}
+
+impl Default for UserIdentity {
+    fn default() -> Self {
+        UserIdentity::Regular
+    }
+}
+
+impl std::fmt::Display for UserIdentity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UserIdentity::Student => write!(f, "Student"),
+            UserIdentity::Regular => write!(f, "Regular"),
+        }
+    }
+}
+
 /// 交易所类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RegistrationExchangeType {
@@ -56,6 +78,7 @@ pub struct RegistrationRequest {
     pub api_key: String,
     pub secret_key: String,
     pub passphrase: Option<String>,
+    pub identity: Option<String>, // 身份类型，前端传递字符串
 }
 
 /// 报名记录
@@ -69,6 +92,7 @@ pub struct Registration {
     pub passphrase: Option<String>,
     pub status: RegistrationStatus,
     pub admin_notes: Option<String>,
+    pub identity: UserIdentity, // 用户身份
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub reviewed_at: Option<DateTime<Utc>>,
