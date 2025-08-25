@@ -35,6 +35,10 @@ pub struct OkxAccountBalance {
 pub struct OkxBalanceData {
     pub details: Vec<OkxBalanceDetail>,
     
+    // 总权益（USDT计价）
+    #[serde(default)]
+    pub totalEq: Option<String>,
+    
     // 使用flatten来捕获所有其他字段，避免解析错误
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_json::Value>,
@@ -83,4 +87,13 @@ pub struct ExchangeBalance {
     pub free: Decimal,
     pub locked: Decimal,
     pub total: Decimal,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usdt_value: Option<Decimal>, // 单个币种的USDT估值
+}
+
+// 账户总览结构
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountSummary {
+    pub total_usdt_value: Decimal, // 账户总USDT估值
+    pub balances: Vec<ExchangeBalance>,
 }

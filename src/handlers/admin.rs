@@ -50,6 +50,15 @@ pub struct BalanceResponse {
     pub balances: Option<Vec<BalanceInfo>>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct AccountSummaryResponse {
+    pub success: bool,
+    pub message: String,
+    pub query_time: DateTime<Utc>,
+    pub total_usdt_value: Option<Decimal>,
+    pub balances: Option<Vec<BalanceInfo>>,
+}
+
 /// 管理员登录
 pub async fn admin_login(
     State((_registration_service, auth_service, _exchange_service)): State<(RegistrationService, AuthService, ExchangeService)>,

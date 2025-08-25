@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>界面修改测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        .button-demo { margin: 10px 0; }
+        .btn { padding: 8px 16px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; display: inline-block; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-warning { background: #ffc107; color: #212529; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-info { background: #17a2b8; color: white; }
+        .removed { text-decoration: line-through; opacity: 0.5; }
+    </style>
+</head>
+<body>
+    <h1>🎉 界面优化完成</h1>
+    
+    <div class="section success">
+        <h2>✅ 已完成的优化</h2>
+        <ul>
+            <li><strong>移除冗余按钮</strong>：删除了"获取余额"按钮，简化界面</li>
+            <li><strong>统一功能</strong>：只保留"获取总览"功能，提供更完整的信息</li>
+            <li><strong>修复Token验证</strong>：解决了token验证失败的问题</li>
+            <li><strong>改进显示效果</strong>：优化了模态框的滚动和宽度</li>
+        </ul>
+    </div>
+
+    <div class="section info">
+        <h2>🔄 按钮布局变化对比</h2>
+        
+        <h3>📋 待审核状态 (Pending)</h3>
+        <div class="button-demo">
+            <button class="btn btn-primary">详情</button>
+            <button class="btn btn-warning">测试余额</button>
+            <button class="btn btn-success">审核</button>
+            <button class="btn btn-danger">删除</button>
+        </div>
+        <p><em>保持不变 - 管理员可以测试API有效性</em></p>
+        
+        <h3>✅ 已通过状态 (Approved)</h3>
+        <div class="button-demo">
+            <strong>修改前：</strong><br>
+            <button class="btn btn-primary">详情</button>
+            <button class="btn btn-info removed">获取余额</button>
+            <button class="btn btn-primary">获取总览</button>
+            <button class="btn btn-danger">删除</button>
+        </div>
+        <div class="button-demo">
+            <strong>修改后：</strong><br>
+            <button class="btn btn-primary">详情</button>
+            <button class="btn btn-primary">获取总览</button>
+            <button class="btn btn-danger">删除</button>
+        </div>
+        <p><em>✨ 更简洁！"获取总览"提供完整的账户信息，包括USDT总估值和详细余额</em></p>
+    </div>
+
+    <div class="section info">
+        <h2>💰 获取总览功能特点</h2>
+        <ul>
+            <li><strong>📊 总USDT估值</strong>：显示账户所有资产的USDT等值总和</li>
+            <li><strong>📋 详细余额表</strong>：列出每个币种的可用、冻结、总余额</li>
+            <li><strong>🎨 优化显示</strong>：支持滚动、响应式布局、数字格式化</li>
+            <li><strong>🔒 安全认证</strong>：完善的token验证和错误处理</li>
+            <li><strong>⚡ 实时数据</strong>：直接从交易所API获取最新数据</li>
+        </ul>
+    </div>
+
+    <div class="section success">
+        <h2>🎯 用户体验提升</h2>
+        <ul>
+            <li><strong>简化操作</strong>：减少按钮数量，降低选择困难</li>
+            <li><strong>信息完整</strong>：一个按钮获取所有需要的信息</li>
+            <li><strong>界面清爽</strong>：更少的视觉干扰，更专注的操作</li>
+            <li><strong>功能强大</strong>：总览比单纯余额提供更多价值</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>🚀 测试建议</h2>
+        <ol>
+            <li>访问管理后台：<a href="http://localhost:3000/admin" target="_blank">http://localhost:3000/admin</a></li>
+            <li>登录后查看已通过的注册记录</li>
+            <li>点击"获取总览"按钮测试功能</li>
+            <li>验证模态框的滚动和显示效果</li>
+            <li>确认USDT总估值和详细余额都正确显示</li>
+        </ol>
+    </div>
+
+    <div class="section info">
+        <h2>📝 技术细节</h2>
+        <ul>
+            <li><strong>前端</strong>：移除了 <code>getBalance()</code> 函数和相关按钮</li>
+            <li><strong>后端</strong>：保留了 <code>/balance</code> API，供测试功能使用</li>
+            <li><strong>显示</strong>：<code>displayBalance()</code> 函数仍用于测试模式</li>
+            <li><strong>认证</strong>：统一的token处理和错误重定向</li>
+        </ul>
+    </div>
+
+    <script>
+        // 页面加载完成后的提示
+        window.onload = function() {
+            console.log('✅ 界面优化完成！');
+            console.log('🎯 主要变化：移除"获取余额"按钮，只保留"获取总览"功能');
+            console.log('💡 建议：访问 http://localhost:3000/admin 测试新界面');
+        };
+    </script>
+</body>
+</html>

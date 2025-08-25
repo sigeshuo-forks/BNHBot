@@ -237,11 +237,13 @@
         
         .modal-content {
             background-color: white;
-            margin: 5% auto;
-            padding: 30px;
+            margin: 2% auto;
+            padding: 20px;
             border-radius: 10px;
-            width: 90%;
-            max-width: 500px;
+            width: 95%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
         
@@ -298,6 +300,35 @@
             text-align: center;
             padding: 40px;
             color: #666;
+        }
+        
+        .balance-table {
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+        
+        .balance-table table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+        
+        .balance-table th,
+        .balance-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        
+        .balance-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        
+        .balance-table .number-cell {
+            text-align: right;
+            font-family: 'Courier New', monospace;
         }
         
         .empty-state {
@@ -497,7 +528,7 @@
     <div id="balanceModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>💰 账户余额</h3>
+                <h3 id="balanceModalTitle">💰 账户信息</h3>
                 <span class="close" onclick="closeModal('balanceModal')">&times;</span>
             </div>
             <div id="balanceContent">
@@ -555,10 +586,28 @@
         // 获取认证头部
         function getAuthHeaders() {
             const token = localStorage.getItem('admin_token');
+            if (!token) {
+                console.error('No admin token found');
+                alert('登录已过期，请重新登录');
+                window.location.href = '/admin/login.html';
+                return null;
+            }
             return {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             };
+        }
+
+        // 处理API响应错误
+        async function handleApiResponse(response) {
+            if (response.status === 401) {
+                console.log('Token expired or invalid');
+                localStorage.removeItem('admin_token');
+                alert('登录已过期，请重新登录');
+                window.location.href = '/admin/login.html';
+                return null;
+            }
+            return response;
         }
 
         // 退出登录
@@ -654,7 +703,9 @@
                                 <button class="btn btn-warning" onclick="testBalance('${reg.id}')">测试余额</button>
                                 <button class="btn btn-success" onclick="showReview('${reg.id}')">审核</button>
                             ` : ''}
-                            ${reg.status.toLowerCase() === 'approved' ? `<button class="btn btn-info" onclick="getBalance('${reg.id}')">获取余额</button>` : ''}
+                            ${reg.status.toLowerCase() === 'approved' ? `
+                                <button class="btn btn-primary" onclick="getSummary('${reg.id}')">获取总览</button>
+                            ` : ''}
                             <button class="btn btn-danger" onclick="deleteRegistration('${reg.id}')">删除</button>
                         </div>
                     </td>
@@ -793,6 +844,9 @@
                 return;
             }
 
+            // 设置模态框标题
+            document.getElementById('balanceModalTitle').textContent = '🧪 API测试';
+
             // 显示模态框
             document.getElementById('balanceModal').style.display = 'block';
             document.getElementById('balanceLoading').style.display = 'block';
@@ -805,6 +859,12 @@
                     headers: getAuthHeaders()
                 });
 
+                // 处理认证错误
+                const handledResponse = await handleApiResponse(response);
+                if (!handledResponse) {
+                    return; // 已重定向到登录页面
+                }
+
                 if (response.ok) {
                     const balanceInfo = await response.json();
                     displayBalance(registration, balanceInfo, true); // 第三个参数表示是测试模式
@@ -814,38 +874,6 @@
                 }
             } catch (error) {
                 showBalanceError(`API测试失败: ${error.message}`);
-            }
-        }
-
-        // 获取账户余额（审核后）
-        async function getBalance(registrationId) {
-            const registration = allRegistrations.find(r => r.id === registrationId);
-            if (!registration) {
-                alert('找不到报名记录');
-                return;
-            }
-
-            // 显示模态框
-            document.getElementById('balanceModal').style.display = 'block';
-            document.getElementById('balanceLoading').style.display = 'block';
-            document.getElementById('balanceData').style.display = 'none';
-            document.getElementById('balanceError').style.display = 'none';
-
-            try {
-                const response = await fetch(`/api/admin/registrations/${registrationId}/balance`, {
-                    method: 'GET',
-                    headers: getAuthHeaders()
-                });
-
-                if (response.ok) {
-                    const balanceInfo = await response.json();
-                    displayBalance(registration, balanceInfo, false);
-                } else {
-                    const errorText = await response.text();
-                    showBalanceError(`获取余额失败: ${errorText}`);
-                }
-            } catch (error) {
-                showBalanceError(`获取余额失败: ${error.message}`);
             }
         }
 
@@ -882,13 +910,13 @@
                     <div class="form-group">
                         <label>账户余额:</label>
                         <div class="balance-table">
-                            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <table>
                                 <thead>
-                                    <tr style="background: #f8f9fa;">
-                                        <th style="border: 1px solid #ddd; padding: 8px;">资产</th>
-                                        <th style="border: 1px solid #ddd; padding: 8px;">可用余额</th>
-                                        <th style="border: 1px solid #ddd; padding: 8px;">冻结余额</th>
-                                        <th style="border: 1px solid #ddd; padding: 8px;">总余额</th>
+                                    <tr>
+                                        <th>资产</th>
+                                        <th class="number-cell">可用余额</th>
+                                        <th class="number-cell">冻结余额</th>
+                                        <th class="number-cell">总余额</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -897,10 +925,10 @@
                 balanceInfo.balances.forEach(balance => {
                     content += `
                         <tr>
-                            <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${balance.asset}</td>
-                            <td style="border: 1px solid #ddd; padding: 8px;">${balance.free}</td>
-                            <td style="border: 1px solid #ddd; padding: 8px;">${balance.locked}</td>
-                            <td style="border: 1px solid #ddd; padding: 8px; font-weight: bold;">${balance.total}</td>
+                            <td style="font-weight: bold;">${balance.asset}</td>
+                            <td class="number-cell">${parseFloat(balance.free).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 8})}</td>
+                            <td class="number-cell">${parseFloat(balance.locked).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 8})}</td>
+                            <td class="number-cell" style="font-weight: bold;">${parseFloat(balance.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 8})}</td>
                         </tr>
                     `;
                 });
@@ -1056,6 +1084,143 @@
             currentPage = 1;
             displayRegistrations();
         });
+
+        // 获取账户总览（包含USDT总估值）
+        async function getSummary(registrationId) {
+            const registration = allRegistrations.find(r => r.id === registrationId);
+            if (!registration) {
+                alert('未找到注册信息');
+                return;
+            }
+
+            // 设置模态框标题
+            document.getElementById('balanceModalTitle').textContent = '💰 账户总览';
+            
+            // 显示余额模态框
+            document.getElementById('balanceModal').style.display = 'block';
+            document.getElementById('balanceLoading').style.display = 'block';
+            document.getElementById('balanceData').style.display = 'none';
+            document.getElementById('balanceError').style.display = 'none';
+
+            try {
+                const headers = getAuthHeaders();
+                if (!headers) {
+                    return; // getAuthHeaders已经处理了重定向
+                }
+                
+                const response = await fetch(`/api/admin/registrations/${registrationId}/summary`, {
+                    method: 'GET',
+                    headers: headers
+                });
+
+                // 处理认证错误
+                const handledResponse = await handleApiResponse(response);
+                if (!handledResponse) {
+                    return; // 已重定向到登录页面
+                }
+
+                if (response.ok) {
+                    const summaryInfo = await response.json();
+                    displaySummary(registration, summaryInfo);
+                } else {
+                    const errorText = await response.text();
+                    showBalanceError(`获取账户总览失败: ${errorText}`);
+                }
+            } catch (error) {
+                showBalanceError(`获取账户总览失败: ${error.message}`);
+            }
+        }
+
+        // 显示账户总览信息
+        function displaySummary(registration, summaryInfo) {
+            document.getElementById('balanceLoading').style.display = 'none';
+            document.getElementById('balanceError').style.display = 'none';
+            
+            const balanceData = document.getElementById('balanceData');
+            
+            let content = `
+                <div class="form-group" style="background: #e7f3ff; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                    <strong>📊 账户总览模式</strong><br>
+                    <small>显示账户总USDT估值和详细余额信息。</small>
+                </div>
+                <div class="form-group">
+                    <label>用户名称:</label>
+                    <input type="text" value="${registration.user_name}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>交易所:</label>
+                    <input type="text" value="${getExchangeName(registration.exchange)}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>查询时间:</label>
+                    <input type="text" value="${formatDate(summaryInfo.query_time)}" readonly>
+                </div>
+            `;
+
+            if (summaryInfo.success && summaryInfo.total_usdt_value !== null && summaryInfo.total_usdt_value !== undefined) {
+                content += `
+                    <div class="form-group" style="background: #d4edda; padding: 15px; border-radius: 4px; margin: 15px 0;">
+                        <label style="font-size: 18px; font-weight: bold; color: #155724;">💰 账户总估值 (USDT):</label>
+                        <div style="font-size: 24px; font-weight: bold; color: #155724; margin-top: 5px;">
+                            ${parseFloat(summaryInfo.total_usdt_value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 6})} USDT
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (summaryInfo.success && summaryInfo.balances && summaryInfo.balances.length > 0) {
+                content += `
+                    <div class="form-group">
+                        <label>各币种余额详情:</label>
+                        <div class="balance-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>资产</th>
+                                        <th class="number-cell">可用余额</th>
+                                        <th class="number-cell">冻结余额</th>
+                                        <th class="number-cell">总余额</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                summaryInfo.balances.forEach(balance => {
+                    content += `
+                        <tr>
+                            <td style="font-weight: bold;">${balance.asset}</td>
+                            <td class="number-cell">${parseFloat(balance.free).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 8})}</td>
+                            <td class="number-cell">${parseFloat(balance.locked).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 8})}</td>
+                            <td class="number-cell" style="font-weight: bold;">${parseFloat(balance.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 8})}</td>
+                        </tr>
+                    `;
+                });
+                
+                content += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            } else if (summaryInfo.success) {
+                content += `
+                    <div class="form-group">
+                        <p style="color: #6c757d; font-style: italic;">暂无余额数据</p>
+                    </div>
+                `;
+            }
+
+            if (!summaryInfo.success) {
+                content += `
+                    <div class="form-group">
+                        <p style="color: #dc3545;">${summaryInfo.message}</p>
+                    </div>
+                `;
+            }
+
+            balanceData.innerHTML = content;
+            balanceData.style.display = 'block';
+        }
     </script>
 </body>
 </html>

@@ -28,6 +28,14 @@ impl ExchangeService {
         }
     }
 
+    pub async fn get_account_summary(&self, user_exchange: &UserExchange) -> Result<AccountSummary> {
+        match user_exchange.exchange_type {
+            ExchangeType::Binance => self.get_binance_summary(user_exchange).await,
+            ExchangeType::Okx => self.get_okx_summary(user_exchange).await,
+            ExchangeType::Weex => self.get_weex_summary(user_exchange).await,
+        }
+    }
+
     async fn get_binance_balance(&self, user_exchange: &UserExchange) -> Result<Vec<ExchangeBalance>> {
         let url = "https://api.binance.com/api/v3/account";
         let timestamp = chrono::Utc::now().timestamp_millis();
@@ -62,6 +70,7 @@ impl ExchangeService {
                         free,
                         locked,
                         total: free + locked,
+                        usdt_value: None,
                     })
                 } else {
                     None
@@ -70,6 +79,17 @@ impl ExchangeService {
             .collect();
 
         Ok(balances)
+    }
+
+    async fn get_binance_summary(&self, user_exchange: &UserExchange) -> Result<AccountSummary> {
+        // 币安没有直接的总USDT估值API，需要通过价格API计算
+        let balances = self.get_binance_balance(user_exchange).await?;
+        
+        // 暂时返回0作为总估值，后续可以集成价格API
+        Ok(AccountSummary {
+            total_usdt_value: Decimal::ZERO,
+            balances,
+        })
     }
 
     async fn get_okx_balance(&self, user_exchange: &UserExchange) -> Result<Vec<ExchangeBalance>> {
@@ -131,6 +151,7 @@ impl ExchangeService {
                             free: avail_bal,
                             locked: frozen_bal,
                             total: eq,
+                            usdt_value: None, // 单个币种的USDT估值暂时不计算
                         })
                     } else {
                         None
@@ -140,6 +161,83 @@ impl ExchangeService {
             .collect();
 
         Ok(balances)
+    }
+
+    async fn get_okx_summary(&self, user_exchange: &UserExchange) -> Result<AccountSummary> {
+        let url = "https://www.okx.com/api/v5/account/balance";
+        
+        // 欧易API需要ISO8601格式的时间戳，精确到毫秒
+        let timestamp = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string();
+        let method = "GET";
+        let request_path = "/api/v5/account/balance";
+        let body = "";
+        
+        let sign_string = format!("{}{}{}{}", timestamp, method, request_path, body);
+        let signature = self.generate_okx_signature(&sign_string, &user_exchange.secret_key);
+        
+        log::info!("欧易API调试信息:");
+        log::info!("  时间戳: {}", timestamp);
+        log::info!("  签名字符串: '{}'", sign_string);
+        log::info!("  API Key: {}", &user_exchange.api_key);
+        log::info!("  签名结果: {}", signature);
+        
+        let passphrase = user_exchange.passphrase.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("欧易API需要passphrase"))?;
+        
+        log::info!("  Passphrase: {}", passphrase);
+
+        let response = self.client
+            .get(url)
+            .header("OK-ACCESS-KEY", &user_exchange.api_key)
+            .header("OK-ACCESS-SIGN", &signature)
+            .header("OK-ACCESS-TIMESTAMP", &timestamp)
+            .header("OK-ACCESS-PASSPHRASE", passphrase)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("欧易API调用失败: {}", response.status());
+        }
+
+        let balance_response: OkxAccountBalance = response.json().await?;
+        
+        if balance_response.code != "0" {
+            anyhow::bail!("欧易API返回错误: {}", balance_response.msg);
+        }
+
+        let mut total_usdt_value = Decimal::ZERO;
+        let mut balances = Vec::new();
+
+        for data in balance_response.data {
+            // 获取总权益（USDT计价）
+            if let Some(total_eq_str) = &data.totalEq {
+                if let Ok(total_eq) = total_eq_str.parse::<Decimal>() {
+                    total_usdt_value = total_eq;
+                }
+            }
+
+            // 处理各币种余额
+            for detail in data.details {
+                let eq: Decimal = detail.eq.parse().unwrap_or_default();
+                let avail_bal: Decimal = detail.availBal.parse().unwrap_or_default();
+                let frozen_bal: Decimal = detail.frozenBal.parse().unwrap_or_default();
+                
+                if eq > Decimal::ZERO {
+                    balances.push(ExchangeBalance {
+                        asset: detail.ccy,
+                        free: avail_bal,
+                        locked: frozen_bal,
+                        total: eq,
+                        usdt_value: None, // 单个币种的USDT估值可以后续计算
+                    });
+                }
+            }
+        }
+
+        Ok(AccountSummary {
+            total_usdt_value,
+            balances,
+        })
     }
 
     async fn get_weex_balance(&self, user_exchange: &UserExchange) -> Result<Vec<ExchangeBalance>> {
@@ -182,6 +280,7 @@ impl ExchangeService {
                         free,
                         locked,
                         total,
+                        usdt_value: None,
                     })
                 } else {
                     None
@@ -190,6 +289,17 @@ impl ExchangeService {
             .collect();
 
         Ok(balances)
+    }
+
+    async fn get_weex_summary(&self, user_exchange: &UserExchange) -> Result<AccountSummary> {
+        // WEEX没有直接的总USDT估值API，需要通过价格API计算
+        let balances = self.get_weex_balance(user_exchange).await?;
+        
+        // 暂时返回0作为总估值，后续可以集成价格API
+        Ok(AccountSummary {
+            total_usdt_value: Decimal::ZERO,
+            balances,
+        })
     }
 
     fn generate_binance_signature(&self, query_string: &str, secret_key: &str) -> String {

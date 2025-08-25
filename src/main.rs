@@ -286,6 +286,7 @@ async fn start_web_server(
             .route("/api/admin/registrations/:id", delete(handlers::admin::delete_registration))
             .route("/api/admin/registrations/:id/balance", get(handlers::admin::get_registration_balance))
             .route("/api/admin/registrations/:id/test-balance", get(handlers::admin::test_registration_balance))
+            .route("/api/admin/registrations/:id/summary", get(handlers::admin_summary::get_registration_summary))
             .route("/api/registrations", get(list_registrations))
             .route("/api/registrations/:id/review", post(review_registration_api))
             .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone()))

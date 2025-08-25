@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试模态框修复</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        button { margin: 10px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 2% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 95%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .close {
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #aaa;
+        }
+        
+        .close:hover { color: #000; }
+        
+        .balance-table {
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+        
+        .balance-table table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+        
+        .balance-table th,
+        .balance-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        
+        .balance-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        
+        .balance-table .number-cell {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .usdt-total {
+            background: #d4edda;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        
+        .usdt-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #155724;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>测试模态框修复</h1>
+    
+    <button onclick="showTestModal()">显示测试模态框</button>
+    <button onclick="testAPI()">测试API调用</button>
+    
+    <!-- 测试模态框 -->
+    <div id="testModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">💰 账户总览测试</h3>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <div id="modalContent">
+                <div class="usdt-total">
+                    <label style="font-size: 18px; font-weight: bold; color: #155724;">💰 账户总估值 (USDT):</label>
+                    <div class="usdt-value">2,498.77 USDT</div>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label>各币种余额详情:</label>
+                    <div class="balance-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>资产</th>
+                                    <th class="number-cell">可用余额</th>
+                                    <th class="number-cell">冻结余额</th>
+                                    <th class="number-cell">总余额</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="font-weight: bold;">OKB</td>
+                                    <td class="number-cell">0.00000015</td>
+                                    <td class="number-cell">11.37436662</td>
+                                    <td class="number-cell" style="font-weight: bold;">11.37436677</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">USDT</td>
+                                    <td class="number-cell">0.00830669</td>
+                                    <td class="number-cell">0.03754150</td>
+                                    <td class="number-cell" style="font-weight: bold;">0.04584820</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">ETH</td>
+                                    <td class="number-cell">0.00000094</td>
+                                    <td class="number-cell">0.00000000</td>
+                                    <td class="number-cell" style="font-weight: bold;">0.00000094</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">PENGU</td>
+                                    <td class="number-cell">0.04800000</td>
+                                    <td class="number-cell">0.00000000</td>
+                                    <td class="number-cell" style="font-weight: bold;">0.04800000</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">BNB</td>
+                                    <td class="number-cell">0.00000074</td>
+                                    <td class="number-cell">0.00000000</td>
+                                    <td class="number-cell" style="font-weight: bold;">0.00000074</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">BTC</td>
+                                    <td class="number-cell">0.00000000</td>
+                                    <td class="number-cell">0.00000000</td>
+                                    <td class="number-cell" style="font-weight: bold;">0.00000000</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">TRUMP</td>
+                                    <td class="number-cell">0.00004042</td>
+                                    <td class="number-cell">0.00000000</td>
+                                    <td class="number-cell" style="font-weight: bold;">0.00004042</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">NOT</td>
+                                    <td class="number-cell">0.07110000</td>
+                                    <td class="number-cell">0.00000000</td>
+                                    <td class="number-cell" style="font-weight: bold;">0.07110000</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">LAYER</td>
+                                    <td class="number-cell">0.00018500</td>
+                                    <td class="number-cell">0.00000000</td>
+                                    <td class="number-cell" style="font-weight: bold;">0.00018500</td>
+                                </tr>
+                                <tr>
+                                    <td style="font-weight: bold;">SOL</td>
+                                    <td class="number-cell">0.00000053</td>
+                                    <td class="number-cell">0.00000000</td>
+                                    <td class="number-cell" style="font-weight: bold;">0.00000053</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="result" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;"></div>
+
+    <script>
+        function showTestModal() {
+            document.getElementById('testModal').style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('testModal').style.display = 'none';
+        }
+        
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('testModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+        
+        async function testAPI() {
+            try {
+                // 先登录
+                const loginResponse = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: 'admin', password: '123456' })
+                });
+                
+                const loginData = await loginResponse.json();
+                if (!loginData.success) {
+                    document.getElementById('result').innerHTML = `<h3>登录失败</h3><p>${loginData.message}</p>`;
+                    return;
+                }
+                
+                // 测试获取总览
+                const summaryResponse = await fetch('/api/admin/registrations/08e6603a-f811-4edb-b93a-d0422d4733c4/summary', {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${loginData.token}` }
+                });
+                
+                const summaryData = await summaryResponse.json();
+                document.getElementById('result').innerHTML = `
+                    <h3>API测试结果</h3>
+                    <p><strong>状态:</strong> ${summaryResponse.status}</p>
+                    <p><strong>成功:</strong> ${summaryData.success}</p>
+                    <p><strong>总USDT估值:</strong> ${summaryData.total_usdt_value} USDT</p>
+                    <p><strong>币种数量:</strong> ${summaryData.balances ? summaryData.balances.length : 0}</p>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `<h3>API测试错误</h3><p>${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
