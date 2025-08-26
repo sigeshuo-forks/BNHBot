@@ -260,12 +260,12 @@ impl RankingService {
         }
 
         // 稳健投资者 (收益率 5%-20%)
-        if change_percentage >= Decimal::from(5) && change_percentage < Decimal::from(20) {
+        if change_percentage >= Decimal::from(10) && change_percentage < Decimal::from(20) {
             return "💎 稳健投资者".to_string();
         }
 
         // 佛系持币 (收益率 -5% 到 5%)
-        if change_percentage >= Decimal::from(-5) && change_percentage < Decimal::from(5) {
+        if change_percentage >= Decimal::from(5) && change_percentage < Decimal::from(10) {
             return "🧘 佛系持币".to_string();
         }
 
@@ -275,7 +275,7 @@ impl RankingService {
         }
 
         // 默认标签
-        "📊 摸鱼强者".to_string()
+        "🛁 摸鱼强者".to_string()
     }
 
     /// 更新固定排名表
