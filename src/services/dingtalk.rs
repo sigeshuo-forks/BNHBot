@@ -1,4 +1,5 @@
 use crate::models::DailyReport;
+use crate::utils::timezone::TimezoneUtil;
 use anyhow::Result;
 use reqwest::Client;
 use serde::{Serialize, Deserialize};
@@ -122,7 +123,8 @@ impl DingTalkBot {
 
     /// 发送启动通知
     pub async fn send_startup_notification(&self, at_all: bool, web_base_url: &str) -> Result<()> {
-        let startup_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        // let startup_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let startup_time = TimezoneUtil::now_china().to_string();
         
         // 获取系统信息
         // let system_info = self.get_system_info();
