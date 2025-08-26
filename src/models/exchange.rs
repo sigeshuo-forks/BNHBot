@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use rust_decimal::Decimal;
 
-// 币安API响应结构
+// 币安现货API响应结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BinanceAccountInfo {
+pub struct BinanceSpotAccountInfo {
     pub makerCommission: i64,
     pub takerCommission: i64,
     pub buyerCommission: i64,
@@ -13,14 +13,40 @@ pub struct BinanceAccountInfo {
     pub canDeposit: bool,
     pub updateTime: i64,
     pub accountType: String,
-    pub balances: Vec<BinanceBalance>,
+    pub balances: Vec<BinanceSpotBalance>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BinanceBalance {
+pub struct BinanceSpotBalance {
     pub asset: String,
     pub free: String,
     pub locked: String,
+}
+
+// 币安合约账户API响应结构 (USDT-M) - 简化版本，只保留必要字段
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BinanceFuturesAccountInfo {
+    // 只保留我们需要的字段
+    pub assets: Vec<BinanceFuturesAsset>,
+    
+    // 使用flatten来忽略所有其他字段，避免解析错误
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BinanceFuturesAsset {
+    pub asset: String,
+    pub walletBalance: String,
+    pub availableBalance: String,
+    
+    // 可选字段，如果不存在则为默认值
+    #[serde(default)]
+    pub positionInitialMargin: Option<String>,
+    
+    // 使用flatten来忽略所有其他字段
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 // 欧易API响应结构

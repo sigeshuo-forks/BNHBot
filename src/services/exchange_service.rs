@@ -38,13 +38,23 @@ impl ExchangeService {
     }
 
     async fn get_binance_balance(&self, user_exchange: &UserExchange) -> Result<Vec<ExchangeBalance>> {
-        let url = "https://api.binance.com/api/v3/account";
+        // 改为合约账户API
+        let url = "https://fapi.binance.com/fapi/v2/account";
         let timestamp = chrono::Utc::now().timestamp_millis();
+        let query_string = format!("timestamp={}", timestamp);
         
         let signature = self.generate_binance_signature(
-            &format!("timestamp={}", timestamp),
+            &query_string,
             &user_exchange.secret_key,
         );
+
+        // 添加调试日志
+        log::info!("币安合约API调试信息:");
+        log::info!("  URL: {}", url);
+        log::info!("  时间戳: {}", timestamp);
+        log::info!("  查询字符串: '{}'", query_string);
+        log::info!("  API Key: {}", &user_exchange.api_key);
+        log::info!("  签名结果: {}", signature);
 
         let response = self.client
             .get(url)
@@ -53,24 +63,58 @@ impl ExchangeService {
             .send()
             .await?;
 
-        if !response.status().is_success() {
-            anyhow::bail!("币安API调用失败: {}", response.status());
+        let status = response.status();
+        if !status.is_success() {
+            // 尝试获取详细的错误信息
+            let error_text = response.text().await.unwrap_or_default();
+            log::error!("币安合约API调用失败 - 状态码: {}, 响应体: {}", status, error_text);
+            
+            // 尝试解析币安的错误响应
+            if let Ok(error_json) = serde_json::from_str::<serde_json::Value>(&error_text) {
+                if let (Some(code), Some(msg)) = (error_json.get("code"), error_json.get("msg")) {
+                    anyhow::bail!("币安合约API调用失败 - 状态码: {}, 错误码: {}, 错误信息: {}", 
+                                 status, code, msg);
+                }
+            }
+            anyhow::bail!("币安合约API调用失败 - 状态码: {}, 响应体: {}", status, error_text);
         }
 
-        let account_info: BinanceAccountInfo = response.json().await?;
+        // 先获取响应文本进行调试
+        let response_text = response.text().await?;
+        log::debug!("币安合约API响应: {}", response_text);
         
-        let balances: Vec<ExchangeBalance> = account_info.balances
+        // 尝试解析JSON响应
+        let account_info: BinanceFuturesAccountInfo = match serde_json::from_str(&response_text) {
+            Ok(info) => info,
+            Err(e) => {
+                log::error!("解析币安合约账户响应失败: {}", e);
+                log::error!("响应内容: {}", response_text);
+                anyhow::bail!("解析币安合约账户响应失败: {}", e);
+            }
+        };
+        
+        // 从合约账户资产中提取余额
+        let balances: Vec<ExchangeBalance> = account_info.assets
             .into_iter()
-            .filter_map(|b| {
-                let free: Decimal = b.free.parse().ok()?;
-                let locked: Decimal = b.locked.parse().ok()?;
+            .filter_map(|asset| {
+                let wallet_balance: Decimal = asset.walletBalance.parse().ok()?;
+                let available_balance: Decimal = asset.availableBalance.parse().ok()?;
+                let position_margin: Decimal = asset.positionInitialMargin
+                    .as_ref()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or_default();
                 
-                if free > Decimal::ZERO || locked > Decimal::ZERO {
+                // 合约账户中，locked = positionInitialMargin (仓位占用保证金)
+                let locked = position_margin;
+                let free = available_balance;
+                let total = wallet_balance;
+                
+                if total > Decimal::ZERO {
                     Some(ExchangeBalance {
-                        asset: b.asset,
+                        asset: asset.asset,
                         free,
                         locked,
-                        total: free + locked,
+                        total,
                         usdt_value: None,
                     })
                 } else {
@@ -79,11 +123,20 @@ impl ExchangeService {
             })
             .collect();
 
+        log::info!("币安合约账户共获取到 {} 种资产余额", balances.len());
+        for balance in &balances {
+            log::info!("  {}: 总余额={}, 可用={}, 占用={}", 
+                      balance.asset, balance.total, balance.free, balance.locked);
+        }
+
         Ok(balances)
     }
 
     async fn get_binance_summary(&self, user_exchange: &UserExchange) -> Result<AccountSummary> {
+        log::info!("开始获取币安合约账户汇总...");
         let balances = self.get_binance_balance(user_exchange).await?;
+        
+        log::info!("从合约账户获取到 {} 个币种余额", balances.len());
         
         // 只统计USDT余额，忽略其他币种
         let mut total_usdt_value = Decimal::ZERO;
@@ -92,8 +145,19 @@ impl ExchangeService {
         for balance in balances {
             if balance.asset == "USDT" {
                 total_usdt_value += balance.total;
+                log::info!("  USDT合约余额: 总量={}, 可用={}, 占用保证金={}", 
+                          balance.total, balance.free, balance.locked);
                 usdt_balances.push(balance);
+            } else {
+                // 记录非USDT资产（但不统计到总值）
+                log::info!("  忽略币种 {}: 总量={}", balance.asset, balance.total);
             }
+        }
+        
+        log::info!("币安合约账户USDT总余额: {} USDT", total_usdt_value);
+        
+        if usdt_balances.is_empty() {
+            log::warn!("警告: 币安合约账户中未发现USDT余额");
         }
         
         Ok(AccountSummary {
