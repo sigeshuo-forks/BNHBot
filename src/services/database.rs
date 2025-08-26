@@ -119,6 +119,34 @@ impl DatabaseService {
             "#
         ).execute(pool).await?;
 
+        // 固定排名表（避免实时计算的随机性）
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS rankings (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                user_name TEXT NOT NULL,
+                exchange_type TEXT NOT NULL,
+                period TEXT NOT NULL, -- 'daily', 'weekly', 'monthly'
+                rank_position INTEGER NOT NULL,
+                current_balance TEXT NOT NULL,
+                previous_balance TEXT,
+                change_amount TEXT NOT NULL,
+                change_percentage TEXT NOT NULL,
+                is_doubled BOOLEAN NOT NULL DEFAULT 0,
+                user_label TEXT NOT NULL,
+                user_identity TEXT NOT NULL,
+                participation_days INTEGER NOT NULL,
+                balance_history TEXT NOT NULL, -- JSON格式存储历史数据点
+                calculated_at TEXT NOT NULL, -- 计算时间
+                recorded_date TEXT NOT NULL, -- YYYY-MM-DD格式，用于标识是哪一天的排名
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(user_id, period, recorded_date) -- 每个用户每个周期每天只能有一条排名记录
+            )
+            "#
+        ).execute(pool).await?;
+
         Ok(())
     }
 
@@ -609,6 +637,127 @@ impl DatabaseService {
         .await?;
 
         self.parse_registration_from_row(&row)
+    }
+
+    // 排名表管理方法
+    /// 保存排名数据到数据库
+    pub async fn save_rankings(&self, rankings: &[crate::models::ranking::RankingEntry], period: &str, recorded_date: &str) -> Result<()> {
+        let now = Utc::now();
+        
+        // 先删除该周期当天的旧排名数据
+        sqlx::query(
+            "DELETE FROM rankings WHERE period = ? AND recorded_date = ?"
+        )
+        .bind(period)
+        .bind(recorded_date)
+        .execute(&self.pool)
+        .await?;
+
+        // 保存新的排名数据
+        for ranking in rankings {
+            let id = Uuid::new_v4();
+            let balance_history_json = serde_json::to_string(&ranking.balance_history)?;
+            
+            sqlx::query(
+                r#"
+                INSERT INTO rankings (
+                    id, user_id, user_name, exchange_type, period, rank_position,
+                    current_balance, previous_balance, change_amount, change_percentage,
+                    is_doubled, user_label, user_identity, participation_days,
+                    balance_history, calculated_at, recorded_date, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                "#
+            )
+            .bind(id.to_string())
+            .bind(ranking.user_id.to_string())
+            .bind(&ranking.user_name)
+            .bind(&ranking.exchange_type)
+            .bind(period)
+            .bind(ranking.rank as i32)
+            .bind(ranking.current_balance.to_string())
+            .bind(ranking.previous_balance.map(|b| b.to_string()))
+            .bind(ranking.change_amount.to_string())
+            .bind(ranking.change_percentage.to_string())
+            .bind(ranking.is_doubled)
+            .bind(&ranking.user_label)
+            .bind(&ranking.identity)
+            .bind(ranking.participation_days as i32)
+            .bind(balance_history_json)
+            .bind(now.to_rfc3339())
+            .bind(recorded_date)
+            .bind(now.to_rfc3339())
+            .bind(now.to_rfc3339())
+            .execute(&self.pool)
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    /// 获取固定排名数据
+    pub async fn get_rankings(&self, period: &str, recorded_date: &str) -> Result<Vec<crate::models::ranking::RankingEntry>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT user_id, user_name, exchange_type, rank_position,
+                   current_balance, previous_balance, change_amount, change_percentage,
+                   is_doubled, user_label, user_identity, participation_days, balance_history
+            FROM rankings 
+            WHERE period = ? AND recorded_date = ?
+            ORDER BY rank_position ASC
+            "#
+        )
+        .bind(period)
+        .bind(recorded_date)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut rankings = Vec::new();
+        for row in rows {
+            let balance_history: Vec<crate::models::ranking::BalanceHistoryPoint> = 
+                serde_json::from_str(&row.get::<String, _>("balance_history"))?;
+            
+            rankings.push(crate::models::ranking::RankingEntry {
+                user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
+                user_name: row.get("user_name"),
+                exchange_type: row.get("exchange_type"),
+                current_balance: Decimal::from_str(&row.get::<String, _>("current_balance"))?,
+                previous_balance: row.get::<Option<String>, _>("previous_balance")
+                    .and_then(|s| Decimal::from_str(&s).ok()),
+                change_amount: Decimal::from_str(&row.get::<String, _>("change_amount"))?,
+                change_percentage: Decimal::from_str(&row.get::<String, _>("change_percentage"))?,
+                rank: row.get::<i32, _>("rank_position") as u32,
+                is_doubled: row.get("is_doubled"),
+                balance_history,
+                user_label: row.get("user_label"),
+                identity: row.get("user_identity"),
+                participation_days: row.get::<i32, _>("participation_days") as u32,
+            });
+        }
+
+        Ok(rankings)
+    }
+
+    /// 获取最新可用的排名日期
+    pub async fn get_latest_ranking_date(&self, period: &str) -> Result<Option<String>> {
+        let row = sqlx::query(
+            "SELECT recorded_date FROM rankings WHERE period = ? ORDER BY recorded_date DESC LIMIT 1"
+        )
+        .bind(period)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|r| r.get("recorded_date")))
+    }
+
+    /// 清理旧的排名数据（保留最近30天的数据）
+    pub async fn cleanup_old_rankings(&self) -> Result<()> {
+        sqlx::query(
+            "DELETE FROM rankings WHERE recorded_date < date('now', '-30 days')"
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }
 

@@ -10,6 +10,15 @@ pub struct SendRankingResponse {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateRankingResponse {
+    pub success: bool,
+    pub message: String,
+    pub daily_count: usize,
+    pub weekly_count: usize,
+    pub monthly_count: usize,
+}
+
 /// 手动发送排名到钉钉群（管理员功能）
 /// 仅基于数据库中已有的余额数据计算排名并发送，不重新获取交易所数据
 pub async fn send_ranking_to_dingtalk(
@@ -92,6 +101,57 @@ pub async fn send_ranking_to_dingtalk(
             Json(SendRankingResponse {
                 success: false,
                 message: format!("获取排名数据失败: {}", e),
+            })
+        }
+    }
+}
+
+/// 手动收集余额数据并更新排名表（管理员功能）
+/// 从各交易所获取最新余额数据，然后计算并更新固定排名表
+pub async fn update_fixed_rankings(
+    State(ranking_service): State<RankingService>,
+) -> Json<UpdateRankingResponse> {
+    info!("管理员手动触发排名表更新");
+    
+    // 触发余额收集，这会自动更新排名表
+    match ranking_service.collect_all_balances().await {
+        Ok(result) => {
+            if result.success {
+                // 获取刚刚更新的排名数据统计
+                let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+                
+                // 尝试获取各周期的排名数量
+                let daily_count = ranking_service.get_fixed_rankings("daily", &today).await.map(|r| r.len()).unwrap_or(0);
+                let weekly_count = ranking_service.get_fixed_rankings("weekly", &today).await.map(|r| r.len()).unwrap_or(0);
+                let monthly_count = ranking_service.get_fixed_rankings("monthly", &today).await.map(|r| r.len()).unwrap_or(0);
+                
+                info!("手动排名表更新成功");
+                Json(UpdateRankingResponse {
+                    success: true,
+                    message: format!("排名表更新成功！余额收集: 成功 {}, 失败 {}", result.collected_count, result.failed_count),
+                    daily_count,
+                    weekly_count,
+                    monthly_count,
+                })
+            } else {
+                error!("排名表更新失败: {}", result.message);
+                Json(UpdateRankingResponse {
+                    success: false,
+                    message: format!("排名表更新失败: {}", result.message),
+                    daily_count: 0,
+                    weekly_count: 0,
+                    monthly_count: 0,
+                })
+            }
+        }
+        Err(e) => {
+            error!("触发排名表更新失败: {}", e);
+            Json(UpdateRankingResponse {
+                success: false,
+                message: format!("触发排名表更新失败: {}", e),
+                daily_count: 0,
+                weekly_count: 0,
+                monthly_count: 0,
             })
         }
     }

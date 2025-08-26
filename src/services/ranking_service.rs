@@ -6,7 +6,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use uuid::Uuid;
 use std::collections::HashMap;
-use log::{info, error};
+use log::{info, error, warn};
 
 #[derive(Clone)]
 pub struct RankingService {
@@ -49,6 +49,17 @@ impl RankingService {
         }
         
         info!("余额收集完成 - 成功: {}, 失败: {}", collected_count, failed_count);
+        
+        // 如果有成功收集的数据，重新计算并保存排名
+        if collected_count > 0 {
+            info!("开始计算并更新固定排名表...");
+            if let Err(e) = self.update_fixed_rankings(&today).await {
+                error!("更新固定排名表失败: {}", e);
+                errors.push(format!("更新排名表失败: {}", e));
+            } else {
+                info!("✅ 固定排名表更新成功");
+            }
+        }
         
         Ok(BalanceCollectionResponse {
             success: failed_count == 0,
@@ -266,11 +277,37 @@ impl RankingService {
         "📊 普通交易者".to_string()
     }
 
-    /// 获取排名响应
-    pub async fn get_rankings(&self) -> Result<RankingResponse> {
+    /// 更新固定排名表
+    async fn update_fixed_rankings(&self, recorded_date: &str) -> Result<()> {
+        info!("开始更新固定排名表 - 日期: {}", recorded_date);
+
+        // 计算三个周期的排名
         let daily_rankings = self.calculate_rankings(RankingPeriod::Daily).await?;
         let weekly_rankings = self.calculate_rankings(RankingPeriod::Weekly).await?;
         let monthly_rankings = self.calculate_rankings(RankingPeriod::Monthly).await?;
+
+        // 保存到数据库
+        self.database.save_rankings(&daily_rankings, "daily", recorded_date).await?;
+        self.database.save_rankings(&weekly_rankings, "weekly", recorded_date).await?;
+        self.database.save_rankings(&monthly_rankings, "monthly", recorded_date).await?;
+
+        // 清理旧数据
+        self.database.cleanup_old_rankings().await?;
+
+        info!("固定排名表更新完成 - 日榜: {} 位, 周榜: {} 位, 月榜: {} 位", 
+              daily_rankings.len(), weekly_rankings.len(), monthly_rankings.len());
+
+        Ok(())
+    }
+
+    /// 获取固定排名响应（从数据库读取）
+    pub async fn get_rankings(&self) -> Result<RankingResponse> {
+        let today = Utc::now().format("%Y-%m-%d").to_string();
+        
+        // 尝试从数据库获取今天的排名
+        let daily_rankings = self.get_fixed_rankings("daily", &today).await?;
+        let weekly_rankings = self.get_fixed_rankings("weekly", &today).await?;
+        let monthly_rankings = self.get_fixed_rankings("monthly", &today).await?;
 
         Ok(RankingResponse {
             daily_rankings,
@@ -280,9 +317,42 @@ impl RankingService {
         })
     }
 
+    /// 获取固定排名数据，如果没有则降级到实时计算
+    pub async fn get_fixed_rankings(&self, period: &str, recorded_date: &str) -> Result<Vec<RankingEntry>> {
+        // 首先尝试从数据库获取固定排名
+        match self.database.get_rankings(period, recorded_date).await {
+            Ok(rankings) if !rankings.is_empty() => {
+                info!("从数据库获取{}排名 - {} 位用户", period, rankings.len());
+                return Ok(rankings);
+            }
+            _ => {
+                // 如果没有固定排名，尝试获取最近的排名
+                if let Ok(Some(latest_date)) = self.database.get_latest_ranking_date(period).await {
+                    if let Ok(rankings) = self.database.get_rankings(period, &latest_date).await {
+                        if !rankings.is_empty() {
+                            info!("使用最近的{}排名数据 - 日期: {}, {} 位用户", period, latest_date, rankings.len());
+                            return Ok(rankings);
+                        }
+                    }
+                }
+                
+                // 如果都没有，降级到实时计算
+                warn!("未找到固定{}排名，降级到实时计算", period);
+                let ranking_period = match period {
+                    "daily" => RankingPeriod::Daily,
+                    "weekly" => RankingPeriod::Weekly,
+                    "monthly" => RankingPeriod::Monthly,
+                    _ => RankingPeriod::Daily,
+                };
+                self.calculate_rankings(ranking_period).await
+            }
+        }
+    }
+
     /// 获取钉钉排名消息（前5名）
     pub async fn get_dingtalk_ranking_message(&self, ranking_url: &str) -> Result<DingTalkRankingMessage> {
-        let daily_rankings = self.calculate_rankings(RankingPeriod::Daily).await?;
+        let today = Utc::now().format("%Y-%m-%d").to_string();
+        let daily_rankings = self.get_fixed_rankings("daily", &today).await?;
         let top_rankings = daily_rankings.into_iter().take(5).collect();
         let total_participants = self.database.get_all_approved_users_with_exchanges().await?.len() as u32;
 

@@ -337,11 +337,13 @@ async fn start_web_server(
             .with_state((ranking_service.clone(), dingtalk_bot.clone()))
             .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
 
-        // 手动收集余额的管理API路由（从交易所获取最新数据）
-        let balance_collection_admin_routes = Router::new()
-            .route("/api/admin/collect-balances", post(handlers::admin_balance::collect_all_balances))
+        // 手动更新排名表的管理API路由
+        let update_ranking_admin_routes = Router::new()
+            .route("/api/admin/update-rankings", post(handlers::admin_ranking::update_fixed_rankings))
             .with_state(ranking_service.clone())
             .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+
+
 
         // 管理页面路由（不需要服务器端认证，由前端JavaScript处理）
         let admin_page_routes = Router::new()
@@ -357,7 +359,7 @@ async fn start_web_server(
             .merge(basic_admin_routes)
             .merge(ranking_admin_routes)
             .merge(manual_ranking_admin_routes)
-            .merge(balance_collection_admin_routes)
+            .merge(update_ranking_admin_routes)
             .merge(admin_page_routes)
             .layer(axum::middleware::from_fn(security_headers_middleware))
             .layer(CorsLayer::permissive());

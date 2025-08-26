@@ -1,4 +1,4 @@
-use crate::models::ranking::*;
+use crate::models::ranking::{RankingEntry, RankingResponse};
 use crate::services::RankingService;
 use axum::{
     extract::{State, Query},
@@ -27,32 +27,15 @@ pub async fn get_rankings(
     }
 }
 
-/// 手动触发余额收集（管理员功能）
-pub async fn trigger_balance_collection(
-    State((_registration_service, _auth_service, _exchange_service, ranking_service)): State<(crate::services::RegistrationService, crate::services::AuthService, crate::services::ExchangeService, RankingService)>,
-) -> Result<Json<BalanceCollectionResponse>, StatusCode> {
-    match ranking_service.collect_all_balances().await {
-        Ok(response) => Ok(Json(response)),
-        Err(e) => {
-            log::error!("触发余额收集失败: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
-/// 获取特定周期的排名
+/// 获取特定周期的排名（从固定排名表获取）
 pub async fn get_period_rankings(
     State((_registration_service, _auth_service, _exchange_service, ranking_service)): State<(crate::services::RegistrationService, crate::services::AuthService, crate::services::ExchangeService, RankingService)>,
     Query(query): Query<RankingQuery>,
 ) -> Result<Json<Vec<RankingEntry>>, StatusCode> {
-    let period = match query.period.as_deref() {
-        Some("daily") => RankingPeriod::Daily,
-        Some("weekly") => RankingPeriod::Weekly,
-        Some("monthly") => RankingPeriod::Monthly,
-        _ => RankingPeriod::Daily,
-    };
+    let period_str = query.period.as_deref().unwrap_or("daily");
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
 
-    match ranking_service.calculate_rankings(period.clone()).await {
+    match ranking_service.get_fixed_rankings(period_str, &today).await {
         Ok(rankings) => {
             let limited_rankings = if let Some(limit) = query.limit {
                 rankings.into_iter().take(limit as usize).collect()
@@ -62,12 +45,13 @@ pub async fn get_period_rankings(
             Ok(Json(limited_rankings))
         }
         Err(e) => {
-            let period_name = match period {
-                RankingPeriod::Daily => "日",
-                RankingPeriod::Weekly => "周",
-                RankingPeriod::Monthly => "月",
+            let period_name = match period_str {
+                "daily" => "日",
+                "weekly" => "周",
+                "monthly" => "月",
+                _ => "日",
             };
-            log::error!("获取{}排名失败: {}", period_name, e);
+            log::error!("获取固定{}排名失败: {}", period_name, e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
