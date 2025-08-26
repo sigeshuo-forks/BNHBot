@@ -240,7 +240,7 @@ impl RankingService {
     ) -> String {
 
         // 币圈新手 (历史记录少)
-        if user_history.len() <= 3 {
+        if user_history.len() <= 3 && change_percentage == Decimal::from(0) {
             return "🌱 币圈新手".to_string();
         }
 
