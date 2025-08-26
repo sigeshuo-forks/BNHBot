@@ -251,17 +251,17 @@ impl RankingService {
 
         // 交易大神 (收益率 > 50%)
         if change_percentage >= Decimal::from(50) {
-            return "🔥 交易大神".to_string();
+            return "🔥 先天圣体".to_string();
         }
 
         // 量化高手 (收益率 > 20% 且收益率 < 50%)
         if change_percentage >= Decimal::from(20) && change_percentage < Decimal::from(50) {
-            return "🤖 量化高手".to_string();
+            return "🤖 交易大神".to_string();
         }
 
         // 稳健投资者 (收益率 5%-20%)
         if change_percentage >= Decimal::from(10) && change_percentage < Decimal::from(20) {
-            return "💎 稳健投资者".to_string();
+            return "💎 稳健投资".to_string();
         }
 
         // 佛系持币 (收益率 -5% 到 5%)
@@ -271,11 +271,11 @@ impl RankingService {
 
         // 追涨杀跌王 (收益率 < -5%)
         if change_percentage < Decimal::from(-5) {
-            return "📉 追涨杀跌王".to_string();
+            return "📉 追涨杀跌".to_string();
         }
 
         // 默认标签
-        "🛁 摸鱼强者".to_string()
+        "🛁 摸鱼高手".to_string()
     }
 
     /// 更新固定排名表
