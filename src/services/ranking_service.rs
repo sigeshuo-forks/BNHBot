@@ -238,6 +238,12 @@ impl RankingService {
         is_doubled: bool,
         user_history: &[BalanceHistory],
     ) -> String {
+
+        // 币圈新手 (历史记录少)
+        if user_history.len() <= 3 {
+            return "🌱 币圈新手".to_string();
+        }
+
         // 翻倍达人
         if is_doubled {
             return "🚀 翻倍达人".to_string();
@@ -248,33 +254,28 @@ impl RankingService {
             return "🔥 交易大神".to_string();
         }
 
-        // 量化高手 (收益率 > 20% 且余额 > 10000)
-        if change_percentage >= Decimal::from(20) && current_balance >= Decimal::from(10000) {
+        // 量化高手 (收益率 > 20% 且收益率 < 50%)
+        if change_percentage >= Decimal::from(20) && change_percentage < Decimal::from(50) {
             return "🤖 量化高手".to_string();
         }
 
-        // 稳健投资者 (收益率 0-20%)
-        if change_percentage >= Decimal::ZERO && change_percentage < Decimal::from(20) {
+        // 稳健投资者 (收益率 5%-20%)
+        if change_percentage >= Decimal::from(5) && change_percentage < Decimal::from(20) {
             return "💎 稳健投资者".to_string();
         }
 
-        // 佛系持币 (收益率 -5% 到 0%)
-        if change_percentage >= Decimal::from(-5) && change_percentage < Decimal::ZERO {
+        // 佛系持币 (收益率 -5% 到 5%)
+        if change_percentage >= Decimal::from(-5) && change_percentage < Decimal::from(5) {
             return "🧘 佛系持币".to_string();
         }
 
-        // 追涨杀跌王 (收益率 < -20%)
-        if change_percentage < Decimal::from(-20) {
+        // 追涨杀跌王 (收益率 < -5%)
+        if change_percentage < Decimal::from(-5) {
             return "📉 追涨杀跌王".to_string();
         }
 
-        // 币圈新手 (余额 < 1000 或历史记录少)
-        if current_balance < Decimal::from(1000) || user_history.len() <= 3 {
-            return "🌱 币圈新手".to_string();
-        }
-
         // 默认标签
-        "📊 普通交易者".to_string()
+        "📊 摸鱼强者".to_string()
     }
 
     /// 更新固定排名表
