@@ -1,4 +1,5 @@
 use crate::services::{DatabaseService, ExchangeService, DingTalkBot, RankingService};
+use crate::utils::timezone::TimezoneUtil;
 use anyhow::Result;
 use chrono::{DateTime, Utc, TimeZone, Duration};
 use log::{info, error};
@@ -31,7 +32,14 @@ impl Scheduler {
             let next_run = self.get_next_run_time(now);
             let sleep_duration = (next_run - now).num_seconds() as u64;
             
-            info!("下次执行时间: {}, 等待 {} 秒", next_run, sleep_duration);
+            // 显示中国时间便于理解
+            let next_run_china = TimezoneUtil::utc_to_china(next_run);
+            let now_china = TimezoneUtil::utc_to_china(now);
+            
+            info!("当前中国时间: {}, 下次执行中国时间: {}, 等待 {} 秒", 
+                  TimezoneUtil::format_china_time(now_china), 
+                  TimezoneUtil::format_china_time(next_run_china), 
+                  sleep_duration);
             sleep(TokioDuration::from_secs(sleep_duration)).await;
             
             if let Err(e) = self.execute_daily_task().await {
@@ -41,15 +49,22 @@ impl Scheduler {
     }
 
     fn get_next_run_time(&self, now: DateTime<Utc>) -> DateTime<Utc> {
-        // 设置为每日8点执行
-        let target_time = now.date_naive().and_hms_opt(8, 0, 0).unwrap();
-        let target_datetime = Utc.from_utc_datetime(&target_time);
+        // 转换当前UTC时间到中国时间
+        let now_china = TimezoneUtil::utc_to_china(now);
         
-        if now >= target_datetime {
-            // 如果今天8点已经过了，设置为明天8点
-            target_datetime + Duration::days(1)
+        // 设置为中国时间每日8点执行
+        let china_tz = TimezoneUtil::china_timezone();
+        let target_time_china = now_china.date_naive().and_hms_opt(8, 0, 0).unwrap();
+        let target_datetime_china = china_tz.from_local_datetime(&target_time_china).unwrap();
+        
+        // 转换回UTC时间
+        let target_datetime_utc = TimezoneUtil::china_to_utc(target_datetime_china);
+        
+        if now >= target_datetime_utc {
+            // 如果今天中国时间8点已经过了，设置为明天8点
+            target_datetime_utc + Duration::days(1)
         } else {
-            target_datetime
+            target_datetime_utc
         }
     }
 
