@@ -239,6 +239,11 @@ impl RankingService {
         user_history: &[BalanceHistory],
     ) -> String {
 
+        // 爆仓 (收益率 < 0 且 账户余额为0)
+        if change_percentage < Decimal::from(0) && current_balance <= Decimal::from(0) {
+            return "💥 重头再来".to_string();
+        }
+
         // 币圈新手 (历史记录少)
         if user_history.len() <= 3 && change_percentage == Decimal::from(0) {
             return "🌱 币圈新手".to_string();
@@ -271,7 +276,7 @@ impl RankingService {
 
         // 追涨杀跌王 (收益率 < -5%)
         if change_percentage < Decimal::from(-5) {
-            return "📉 追涨杀跌".to_string();
+            return "📉 抄顶逃底".to_string();
         }
 
         // 默认标签
