@@ -85,17 +85,20 @@ impl ExchangeService {
     async fn get_binance_summary(&self, user_exchange: &UserExchange) -> Result<AccountSummary> {
         let balances = self.get_binance_balance(user_exchange).await?;
         
-        // 计算USDT总估值
+        // 只统计USDT余额，忽略其他币种
         let mut total_usdt_value = Decimal::ZERO;
+        let mut usdt_balances = Vec::new();
         
-        for balance in &balances {
-            let estimated_usdt = self.get_usdt_value(&balance.asset, balance.total).await;
-            total_usdt_value += estimated_usdt;
+        for balance in balances {
+            if balance.asset == "USDT" {
+                total_usdt_value += balance.total;
+                usdt_balances.push(balance);
+            }
         }
         
         Ok(AccountSummary {
             total_usdt_value,
-            balances,
+            balances: usdt_balances,
         })
     }
 
@@ -213,37 +216,33 @@ impl ExchangeService {
         }
 
         let mut total_usdt_value = Decimal::ZERO;
-        let mut balances = Vec::new();
+        let mut usdt_balances = Vec::new();
 
         for data in balance_response.data {
-            // 获取总权益（USDT计价）
-            if let Some(total_eq_str) = &data.totalEq {
-                if let Ok(total_eq) = total_eq_str.parse::<Decimal>() {
-                    total_usdt_value = total_eq;
-                }
-            }
-
-            // 处理各币种余额
+            // 只处理USDT余额，忽略其他币种
             for detail in data.details {
-                let eq: Decimal = detail.eq.parse().unwrap_or_default();
-                let avail_bal: Decimal = detail.availBal.parse().unwrap_or_default();
-                let frozen_bal: Decimal = detail.frozenBal.parse().unwrap_or_default();
-                
-                if eq > Decimal::ZERO {
-                    balances.push(ExchangeBalance {
-                        asset: detail.ccy,
-                        free: avail_bal,
-                        locked: frozen_bal,
-                        total: eq,
-                        usdt_value: None, // 单个币种的USDT估值可以后续计算
-                    });
+                if detail.ccy == "USDT" {
+                    let eq: Decimal = detail.eq.parse().unwrap_or_default();
+                    let avail_bal: Decimal = detail.availBal.parse().unwrap_or_default();
+                    let frozen_bal: Decimal = detail.frozenBal.parse().unwrap_or_default();
+                    
+                    if eq > Decimal::ZERO {
+                        total_usdt_value += eq;
+                        usdt_balances.push(ExchangeBalance {
+                            asset: detail.ccy,
+                            free: avail_bal,
+                            locked: frozen_bal,
+                            total: eq,
+                            usdt_value: Some(eq), // USDT的估值就是它自身
+                        });
+                    }
                 }
             }
         }
 
         Ok(AccountSummary {
             total_usdt_value,
-            balances,
+            balances: usdt_balances,
         })
     }
 
@@ -319,28 +318,25 @@ impl ExchangeService {
     async fn get_weex_summary(&self, user_exchange: &UserExchange) -> Result<AccountSummary> {
         let balances = self.get_weex_balance(user_exchange).await?;
         
-        // 计算USDT总估值
+        // 只统计USDT余额，忽略其他币种
         let mut total_usdt_value = Decimal::ZERO;
+        let mut usdt_balances = Vec::new();
         
-        for balance in &balances {
+        for balance in balances {
             if balance.asset == "USDT" {
-                // USDT直接计算
                 total_usdt_value += balance.total;
-            } else {
-                // 其他币种暂时使用简单估值，后续可以集成实时价格API
-                // 这里可以添加价格查询逻辑
-                let estimated_usdt = self.get_usdt_value(&balance.asset, balance.total).await;
-                total_usdt_value += estimated_usdt;
+                usdt_balances.push(balance);
             }
         }
         
         Ok(AccountSummary {
             total_usdt_value,
-            balances,
+            balances: usdt_balances,
         })
     }
 
     // 获取币种的USDT估值（通过币安价格API）
+    #[allow(dead_code)]
     async fn get_usdt_value(&self, asset: &str, amount: Decimal) -> Decimal {
         if amount == Decimal::ZERO {
             return Decimal::ZERO;
@@ -371,6 +367,7 @@ impl ExchangeService {
     }
 
     // 通过币安API获取币种USDT价格
+    #[allow(dead_code)]
     async fn get_binance_price(&self, asset: &str) -> Result<Decimal> {
         let symbol = format!("{}USDT", asset);
         let url = format!("https://api.binance.com/api/v3/ticker/price?symbol={}", symbol);
