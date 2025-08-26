@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BNHBot 交易大赛排名榜</title>
     <!-- 不再使用Chart.js，改用原生JavaScript绘制图表 -->
     <style>
@@ -50,6 +50,7 @@
             display: flex;
             background: #f8f9fa;
             border-bottom: 1px solid #e9ecef;
+            flex-wrap: wrap;
         }
         
         .tab {
@@ -62,6 +63,7 @@
             border: none;
             background: none;
             font-size: 16px;
+            min-width: 120px;
         }
         
         .tab.active {
@@ -547,6 +549,127 @@
                 flex-wrap: wrap;
                 justify-content: center;
                 gap: 10px;
+            }
+
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .tabs {
+                flex-direction: column;
+            }
+
+            .tab {
+                min-width: auto;
+                padding: 15px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .search-container > div {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .search-container input,
+            .search-container button {
+                width: 100%;
+            }
+
+            .ranking-item {
+                margin-bottom: 10px;
+            }
+
+            .ranking-header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .ranking-left {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+
+            .ranking-right {
+                text-align: center;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .chart-container {
+                height: 300px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .header p {
+                font-size: 1em;
+            }
+
+            .content {
+                padding: 15px;
+            }
+
+            .ranking-item {
+                padding: 15px;
+            }
+
+            .user-info h3 {
+                font-size: 1.2em;
+            }
+
+            .user-label,
+            .identity-badge {
+                font-size: 0.8em;
+            }
+
+            .chart-container {
+                height: 250px;
+            }
+        }
+
+        /* 横屏手机优化 */
+        @media (max-width: 768px) and (orientation: landscape) {
+            .tabs {
+                flex-direction: row;
+            }
+
+            .search-container > div {
+                flex-direction: row;
+            }
+
+            .ranking-header {
+                flex-direction: row;
+                text-align: left;
+            }
+
+            .ranking-left {
+                flex-direction: row;
+                text-align: left;
             }
         }
     </style>

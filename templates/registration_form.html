@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BNHBot 用户报名</title>
     <style>
         body {
@@ -98,6 +98,94 @@
             color: #721c24;
             padding: 20px;
             border-radius: 8px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+
+            .container {
+                margin: 10px auto;
+                border-radius: 10px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .header p {
+                font-size: 1em;
+            }
+
+            .form-container {
+                padding: 25px;
+            }
+
+            .form-group {
+                margin-bottom: 20px;
+            }
+
+            .form-group label {
+                font-size: 1em;
+            }
+
+            .form-group input,
+            .form-group select {
+                padding: 12px;
+                font-size: 16px; /* 防止iOS缩放 */
+            }
+
+            .submit-btn {
+                padding: 15px 30px;
+                font-size: 16px;
+            }
+
+            .preview-modal {
+                margin: 5% auto;
+                width: 95%;
+                max-width: 500px;
+            }
+
+            .preview-content {
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .form-container {
+                padding: 20px;
+            }
+
+            .form-group input,
+            .form-group select {
+                padding: 10px;
+            }
+
+            .submit-btn {
+                padding: 12px 25px;
+                font-size: 15px;
+            }
+
+            .preview-modal {
+                margin: 10% auto;
+                width: 98%;
+                padding: 15px;
+            }
+        }
             margin-bottom: 20px;
             text-align: center;
             display: none;

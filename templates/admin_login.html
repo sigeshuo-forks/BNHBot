@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>BNHBot 管理员登录</title>
     <style>
         * {
@@ -203,6 +203,75 @@
         
         .footer a:hover {
             text-decoration: underline;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+
+            .login-container {
+                max-width: 100%;
+                border-radius: 15px;
+            }
+
+            .login-header {
+                padding: 30px 20px;
+            }
+
+            .login-header h1 {
+                font-size: 2em;
+            }
+
+            .login-header p {
+                font-size: 1em;
+            }
+
+            .login-form {
+                padding: 30px 20px;
+            }
+
+            .form-group {
+                margin-bottom: 20px;
+            }
+
+            .form-group label {
+                font-size: 1em;
+            }
+
+            .form-group input {
+                padding: 12px;
+                font-size: 16px; /* 防止iOS缩放 */
+            }
+
+            .login-btn {
+                padding: 15px 30px;
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .login-header h1 {
+                font-size: 1.8em;
+            }
+
+            .login-form {
+                padding: 25px 15px;
+            }
+
+            .form-group input {
+                padding: 10px;
+            }
+
+            .login-btn {
+                padding: 12px 25px;
+                font-size: 15px;
+            }
         }
     </style>
 </head>

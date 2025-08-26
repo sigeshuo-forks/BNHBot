@@ -394,7 +394,7 @@ async fn serve_home_page() -> Html<&'static str> {
     <html lang="zh-CN">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title>BNHBot - 交易大赛机器人</title>
         <style>
             * {
@@ -586,9 +586,91 @@ async fn serve_home_page() -> Html<&'static str> {
                     font-size: 2.5rem;
                 }
 
+                .hero p {
+                    font-size: 1.1rem;
+                }
+
+                .container {
+                    padding: 30px 15px;
+                }
+
+                .features {
+                    grid-template-columns: 1fr;
+                    gap: 20px;
+                }
+
+                .feature-card {
+                    padding: 25px;
+                }
+
+                .cta-section {
+                    padding: 30px 20px;
+                }
+
+                .cta-section h2 {
+                    font-size: 1.8rem;
+                }
+
                 .cta-buttons {
                     flex-direction: column;
                     align-items: center;
+                }
+
+                .btn {
+                    width: 100%;
+                    max-width: 300px;
+                    justify-content: center;
+                }
+            }
+
+            @media (max-width: 480px) {
+                .hero h1 {
+                    font-size: 2rem;
+                }
+
+                .hero p {
+                    font-size: 1rem;
+                }
+
+                .container {
+                    padding: 20px 10px;
+                }
+
+                .feature-card {
+                    padding: 20px;
+                }
+
+                .feature-icon {
+                    font-size: 2.5rem;
+                }
+
+                .cta-section {
+                    padding: 25px 15px;
+                }
+
+                .cta-section h2 {
+                    font-size: 1.5rem;
+                }
+            }
+
+            /* 横屏手机优化 */
+            @media (max-width: 768px) and (orientation: landscape) {
+                .navbar .nav-container {
+                    flex-direction: row;
+                }
+
+                .hero h1 {
+                    font-size: 2.2rem;
+                }
+
+                .cta-buttons {
+                    flex-direction: row;
+                    flex-wrap: wrap;
+                }
+
+                .btn {
+                    width: auto;
+                    max-width: none;
                 }
             }
         </style>
