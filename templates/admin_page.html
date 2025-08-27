@@ -182,7 +182,8 @@
         .table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 800px;
+            min-width: 1000px;
+            table-layout: fixed;
         }
 
         .table-responsive {
@@ -192,15 +193,30 @@
         
         .table th {
             background: #f8f9fa;
-            padding: 15px;
+            padding: 15px 10px;
             text-align: left;
             font-weight: 600;
             border-bottom: 2px solid #e9ecef;
+            white-space: nowrap;
         }
+
+        /* 特定列的宽度控制 */
+        .table th:nth-child(1) { width: 80px; }  /* ID */
+        .table th:nth-child(2) { width: 120px; } /* 用户名称 */
+        .table th:nth-child(3) { width: 80px; }  /* 身份 */
+        .table th:nth-child(4) { width: 80px; }  /* 交易所 */
+        .table th:nth-child(5) { width: 80px; }  /* 状态 */
+        .table th:nth-child(6) { width: 120px; } /* 提交时间 */
+        .table th:nth-child(7) { width: 120px; } /* 审核时间 */
+        .table th:nth-child(8) { width: 150px; } /* 管理员备注 */
+        .table th:nth-child(9) { width: 200px; } /* 操作 */
         
         .table td {
-            padding: 15px;
+            padding: 15px 10px;
             border-bottom: 1px solid #e9ecef;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            vertical-align: top;
         }
         
         .table tbody tr:hover {
@@ -664,16 +680,15 @@
             <table class="table" id="registrationsTable" style="display: none;">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>用户名称</th>
-                        <th>身份</th>
-                        <th>交易所</th>
-                        <th>API Key</th>
-                        <th>状态</th>
-                        <th>提交时间</th>
-                        <th>审核时间</th>
-                        <th>管理员备注</th>
-                        <th>操作</th>
+                        <th style="min-width: 80px;">ID</th>
+                        <th style="min-width: 100px;">用户名称</th>
+                        <th style="min-width: 80px;">身份</th>
+                        <th style="min-width: 80px;">交易所</th>
+                        <th style="min-width: 80px;">状态</th>
+                        <th style="min-width: 120px;">提交时间</th>
+                        <th style="min-width: 120px;">审核时间</th>
+                        <th style="min-width: 120px;">管理员备注</th>
+                        <th style="min-width: 200px;">操作</th>
                     </tr>
                 </thead>
                 <tbody id="registrationsBody">
@@ -708,7 +723,7 @@
                     <input type="text" id="reviewExchange" readonly>
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group" style="display: none;">
                     <label>API Key:</label>
                     <input type="text" id="reviewApiKey" readonly>
                 </div>
@@ -912,15 +927,14 @@
             // 生成表格行
             tbody.innerHTML = pageRegistrations.map(reg => `
                 <tr>
-                    <td>${reg.id.substring(0, 8)}...</td>
-                    <td><strong>${reg.user_name}</strong></td>
+                    <td style="word-break: break-all;">${reg.id.substring(0, 8)}...</td>
+                    <td style="word-break: break-all;"><strong>${reg.user_name}</strong></td>
                     <td><span class="identity-badge identity-${(reg.identity || 'Regular').toLowerCase()}">${getIdentityText(reg.identity || 'Regular')}</span></td>
                     <td><span class="exchange-badge exchange-${reg.exchange.toLowerCase()}">${getExchangeName(reg.exchange)}</span></td>
-                    <td>${reg.api_key.substring(0, 10)}***</td>
                     <td><span class="status-badge status-${reg.status.toLowerCase()}">${getStatusText(reg.status)}</span></td>
-                    <td>${formatDate(reg.created_at)}</td>
-                    <td>${reg.reviewed_at ? formatDate(reg.reviewed_at) : '-'}</td>
-                    <td>${reg.admin_notes || '-'}</td>
+                    <td style="word-break: break-all;">${formatDate(reg.created_at)}</td>
+                    <td style="word-break: break-all;">${reg.reviewed_at ? formatDate(reg.reviewed_at) : '-'}</td>
+                    <td style="word-break: break-all;">${reg.admin_notes || '-'}</td>
                     <td>
                         <div class="actions">
                             <div class="actions-row">
@@ -1002,18 +1016,18 @@
                     <label>交易所:</label>
                     <input type="text" value="${getExchangeName(registration.exchange)}" readonly>
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="display: none;">
                     <label>API Key:</label>
                     <input type="text" value="${registration.api_key}" readonly>
                 </div>
-                <div class="form-group">
+                <div class="form-group" style="display: none;">
                     <label>Secret Key:</label>
-                    <input type="password" value="${registration.secret_key}" readonly>
+                    <input type="text" value="${registration.secret_key}" readonly>
                 </div>
                 ${registration.passphrase ? `
-                <div class="form-group">
+                <div class="form-group" style="display: none;">
                     <label>Passphrase:</label>
-                    <input type="password" value="${registration.passphrase}" readonly>
+                    <input type="text" value="${registration.passphrase}" readonly>
                 </div>
                 ` : ''}
                 <div class="form-group">

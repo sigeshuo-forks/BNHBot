@@ -11,6 +11,7 @@ use axum::{
     http::StatusCode,
     Json, Router,
     response::Html,
+    extract::State,
 };
 
 use tower_http::cors::CorsLayer;
@@ -289,6 +290,12 @@ async fn start_web_server(
             .route("/api/dingtalk/test", get(serve_webhook_test_page))
             .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone()));
 
+        // 测试余额API路由（需要ExchangeService）
+        let exchange_service_for_test = exchange_service.clone();
+        let test_balance_routes = Router::new()
+            .route("/api/test-balance", post(move |payload| handle_test_balance(payload, exchange_service_for_test.clone())))
+            .with_state(());
+
         // 排名相关的公开路由
         let ranking_routes = Router::new()
             .route("/api/rankings", get(handlers::ranking::get_rankings))
@@ -352,6 +359,7 @@ async fn start_web_server(
 
         let app = Router::new()
             .merge(basic_routes)
+            .merge(test_balance_routes)
             .merge(ranking_routes)
             .merge(mock_routes)
             .merge(admin_login_routes)
@@ -904,3 +912,68 @@ async fn start_full_service(
 }
 
 // 这个函数已经不再使用，定时任务调度器现在在start_full_service中启动
+
+// 测试余额API处理函数
+async fn handle_test_balance(
+    Json(payload): Json<serde_json::Value>,
+    exchange_service: ExchangeService,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // 解析请求数据
+    let _user_name = payload["user_name"].as_str()
+        .ok_or_else(|| StatusCode::BAD_REQUEST)?;
+    let exchange = payload["exchange"].as_str()
+        .ok_or_else(|| StatusCode::BAD_REQUEST)?;
+    let api_key = payload["api_key"].as_str()
+        .ok_or_else(|| StatusCode::BAD_REQUEST)?;
+    let secret_key = payload["secret_key"].as_str()
+        .ok_or_else(|| StatusCode::BAD_REQUEST)?;
+    let passphrase = payload["passphrase"].as_str();
+
+    // 验证交易所类型
+    let exchange_type = match exchange {
+        "binance" => crate::models::ExchangeType::Binance,
+        "okx" => crate::models::ExchangeType::Okx,
+        "weex" => crate::models::ExchangeType::Weex,
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    // 创建临时的UserExchange对象用于测试
+    let test_user_exchange = crate::models::UserExchange {
+        id: uuid::Uuid::new_v4(),
+        user_id: uuid::Uuid::new_v4(),
+        exchange_type,
+        api_key: api_key.to_string(),
+        secret_key: secret_key.to_string(),
+        passphrase: passphrase.map(|s| s.to_string()),
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        is_active: true,
+    };
+
+    // 测试获取余额
+    match exchange_service.get_account_summary(&test_user_exchange).await {
+        Ok(summary) => {
+            let response = serde_json::json!({
+                "success": true,
+                "message": "API测试成功",
+                "total_usdt_value": summary.total_usdt_value.to_string(),
+                "balances": summary.balances.iter().map(|b| {
+                    serde_json::json!({
+                        "asset": b.asset,
+                        "free": b.free.to_string(),
+                        "locked": b.locked.to_string(),
+                        "total": b.total.to_string()
+                    })
+                }).collect::<Vec<_>>()
+            });
+            Ok(Json(response))
+        }
+        Err(e) => {
+            let response = serde_json::json!({
+                "success": false,
+                "message": format!("API测试失败: {}", e)
+            });
+            Ok(Json(response))
+        }
+    }
+}

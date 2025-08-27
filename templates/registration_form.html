@@ -98,6 +98,9 @@
             color: #721c24;
             padding: 20px;
             border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            display: none;
         }
 
         /* 响应式设计 */
@@ -444,6 +447,74 @@
             border: 1px solid #ffeaa7;
             font-size: 14px;
         }
+
+        /* 测试余额按钮样式 */
+        .test-balance-btn {
+            background: linear-gradient(135deg, #17a2b8, #138496);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 150px;
+        }
+
+        .test-balance-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(23, 162, 184, 0.3);
+        }
+
+        .test-balance-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .test-balance-btn.testing {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .test-balance-btn.success {
+            background: #28a745;
+        }
+
+        .test-balance-btn.error {
+            background: #dc3545;
+        }
+
+        /* 余额测试状态样式 */
+        .balance-status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .balance-status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .balance-status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .balance-status.checking {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
     </style>
 </head>
 <body>
@@ -528,11 +599,24 @@
                 </div>
 
                 <div class="form-group" id="passphraseGroup" style="display: none;">
-                    <label for="passphrase">Passphrase <span class="required">*</span></label>
+                    <label for="passphrase">Passphrase[密码短语] <span class="required">*</span></label>
                     <input type="text" id="passphrase" name="passphrase" placeholder="请输入您的Passphrase">
                 </div>
 
-                <button type="submit" class="submit-btn" id="submitBtn">
+                <!-- 测试余额功能 -->
+                <div class="form-group" style="margin-top: 25px;">
+                    <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                        <button type="button" class="test-balance-btn" onclick="testBalance()" id="testBalanceBtn">
+                            🧪 测试API余额
+                        </button>
+                        <span id="balanceTestStatus" style="display: none;"></span>
+                    </div>
+                    <div class="form-hint">
+                        💡 提交报名前必须先测试API余额，确保API信息正确
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn" id="submitBtn" disabled>
                     <span id="submitText">提交报名</span>
                     <span id="loadingText" style="display: none;">提交中...</span>
                 </button>
@@ -566,6 +650,28 @@
             <div class="error-message" id="errorMessage">
                 <h3>❌ 报名失败</h3>
                 <p id="errorText">提交过程中出现错误，请重试。</p>
+            </div>
+
+            <!-- 测试余额结果模态框 -->
+            <div id="balanceModal" class="preview-modal" style="display: none;">
+                <div class="preview-content">
+                    <div class="preview-header">
+                        <h3>🧪 API余额测试结果</h3>
+                    </div>
+                    
+                    <div id="balanceLoading" style="text-align: center; padding: 20px; display: none;">
+                        <div style="font-size: 24px; margin-bottom: 10px;">🔄</div>
+                        <p>正在测试API余额，请稍候...</p>
+                    </div>
+                    
+                    <div id="balanceError" style="display: none;"></div>
+                    
+                    <div id="balanceData" style="display: none;"></div>
+                    
+                    <div class="preview-buttons">
+                        <button class="preview-btn cancel" onclick="closeBalanceModal()">❌ 关闭</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -663,6 +769,7 @@
         // 防重复提交和预览功能
         let lastSubmitTime = 0;
         let currentFormData = null;
+        let isBalanceTested = false; // 余额测试状态
 
         // 表单提交处理
         document.getElementById('registrationForm').addEventListener('submit', function(e) {
@@ -671,6 +778,12 @@
             // 检查用户名是否可用
             if (!isUsernameAvailable) {
                 alert('❌ 请先确保用户名可用后再提交');
+                return;
+            }
+            
+            // 检查是否已测试余额
+            if (!isBalanceTested) {
+                alert('❌ 请先测试API余额，确保API信息正确后再提交');
                 return;
             }
             
@@ -839,6 +952,193 @@
         document.getElementById('previewModal').addEventListener('click', function(e) {
             if (e.target === this) {
                 closePreview();
+            }
+        });
+
+        // 测试余额功能
+        async function testBalance() {
+            // 验证表单数据
+            const userName = document.getElementById('userName').value.trim();
+            const exchange = document.getElementById('exchange').value;
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const secretKey = document.getElementById('secretKey').value.trim();
+            const passphrase = document.getElementById('passphrase').value.trim();
+
+            if (!userName) {
+                alert('❌ 请先填写用户名称');
+                return;
+            }
+
+            if (!exchange) {
+                alert('❌ 请先选择交易所');
+                return;
+            }
+
+            if (!apiKey || !secretKey) {
+                alert('❌ 请先填写API Key和Secret Key');
+                return;
+            }
+
+            if (exchange === 'okx' && !passphrase) {
+                alert('❌ 欧易需要填写Passphrase');
+                return;
+            }
+
+            // 更新按钮状态
+            const testBtn = document.getElementById('testBalanceBtn');
+            const originalText = testBtn.innerHTML;
+            testBtn.innerHTML = '🔄 测试中...';
+            testBtn.disabled = true;
+            testBtn.className = 'test-balance-btn testing';
+
+            // 显示测试状态
+            const statusSpan = document.getElementById('balanceTestStatus');
+            statusSpan.innerHTML = '<span class="balance-status checking">🔄 正在测试API余额...</span>';
+            statusSpan.style.display = 'inline';
+
+            try {
+                // 准备测试数据
+                const testData = {
+                    user_name: userName,
+                    exchange: exchange,
+                    api_key: apiKey,
+                    secret_key: secretKey,
+                    passphrase: passphrase
+                };
+
+                // 调用测试API
+                const response = await fetch('/api/test-balance', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(testData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // 测试成功
+                    testBtn.innerHTML = '✅ 测试成功';
+                    testBtn.className = 'test-balance-btn success';
+                    statusSpan.innerHTML = '<span class="balance-status success">✅ API测试成功！余额: ' + result.total_usdt_value + ' USDT</span>';
+                    
+                    // 启用提交按钮
+                    document.getElementById('submitBtn').disabled = false;
+                    isBalanceTested = true;
+                    
+                    // 显示详细结果
+                    showBalanceResult(result);
+                } else {
+                    // 测试失败
+                    testBtn.innerHTML = '❌ 测试失败';
+                    testBtn.className = 'test-balance-btn error';
+                    statusSpan.innerHTML = '<span class="balance-status error">❌ API测试失败: ' + (result.message || '未知错误') + '</span>';
+                    
+                    // 保持提交按钮禁用
+                    document.getElementById('submitBtn').disabled = true;
+                    isBalanceTested = false;
+                }
+            } catch (error) {
+                console.error('测试余额失败:', error);
+                testBtn.innerHTML = '❌ 测试失败';
+                testBtn.className = 'test-balance-btn error';
+                statusSpan.innerHTML = '<span class="balance-status error">❌ 网络错误，请检查网络连接后重试</span>';
+                
+                // 保持提交按钮禁用
+                document.getElementById('submitBtn').disabled = true;
+                isBalanceTested = false;
+            } finally {
+                // 恢复按钮状态（如果不是成功状态）
+                if (!isBalanceTested) {
+                    setTimeout(() => {
+                        testBtn.innerHTML = '🧪 测试API余额';
+                        testBtn.disabled = false;
+                        testBtn.className = 'test-balance-btn';
+                    }, 3000);
+                }
+            }
+        }
+
+        // 显示余额测试结果
+        function showBalanceResult(balanceInfo) {
+            const modal = document.getElementById('balanceModal');
+            const loading = document.getElementById('balanceLoading');
+            const data = document.getElementById('balanceData');
+            const error = document.getElementById('balanceError');
+
+            // 隐藏加载状态
+            loading.style.display = 'none';
+            error.style.display = 'none';
+
+            // 显示余额数据
+            let content = `
+                <div class="form-group" style="background: #d4edda; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #c3e6cb;">
+                    <strong>✅ API测试成功！</strong><br>
+                    <small>您的API信息验证通过，可以正常获取账户余额数据。</small>
+                </div>
+                
+                <div class="form-group">
+                    <label>查询时间:</label>
+                    <input type="text" value="${new Date().toLocaleString('zh-CN')}" readonly style="background: #f8f9fa;">
+                </div>
+                
+                <div class="form-group">
+                    <label>总USDT余额:</label>
+                    <input type="text" value="${balanceInfo.total_usdt_value} USDT" readonly style="background: #f8f9fa; font-weight: bold; color: #28a745;">
+                </div>
+            `;
+
+            if (balanceInfo.balances && balanceInfo.balances.length > 0) {
+                content += `
+                    <div class="form-group">
+                        <label>账户余额详情:</label>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; max-height: 200px; overflow-y: auto;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid #dee2e6;">
+                                        <th style="text-align: left; padding: 8px;">资产</th>
+                                        <th style="text-align: right; padding: 8px;">可用余额</th>
+                                        <th style="text-align: right; padding: 8px;">冻结余额</th>
+                                        <th style="text-align: right; padding: 8px;">总余额</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                balanceInfo.balances.forEach(balance => {
+                    content += `
+                        <tr style="border-bottom: 1px solid #f1f3f4;">
+                            <td style="padding: 8px; font-weight: bold;">${balance.asset}</td>
+                            <td style="text-align: right; padding: 8px;">${parseFloat(balance.free).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 8})}</td>
+                            <td style="text-align: right; padding: 8px;">${parseFloat(balance.locked).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 8})}</td>
+                            <td style="text-align: right; padding: 8px; font-weight: bold;">${parseFloat(balance.total).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 8})}</td>
+                        </tr>
+                    `;
+                });
+                
+                content += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+
+            data.innerHTML = content;
+            data.style.display = 'block';
+            modal.style.display = 'block';
+        }
+
+        // 关闭余额测试模态框
+        function closeBalanceModal() {
+            document.getElementById('balanceModal').style.display = 'none';
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('balanceModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeBalanceModal();
             }
         });
     </script>
