@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BNHBot 交易大赛排名榜</title>
+    <title>实盘考核大赛排名榜</title>
     <!-- 不再使用Chart.js，改用原生JavaScript绘制图表 -->
     <style>
         * {
@@ -692,7 +692,7 @@
     <div class="container">
         <div class="header">
             <h1>🏆 交易大赛排名榜</h1>
-            <p>实时追踪参赛选手的账户表现</p>
+            <p>本次实盘考核，目标是翻仓。控制好仓位，避免爆仓。</p>
         </div>
         
         <div class="tabs">
@@ -1324,14 +1324,14 @@
             return texts[identity.toLowerCase()] || '普通用户';
         }
 
-        // 隐藏用户ID，只显示前后四位
+        // 隐藏用户ID，只显示前后四位，中间显示4个*
         function maskUserId(userId) {
             if (!userId || userId.length <= 8) {
                 return userId;
             }
             const start = userId.substring(0, 4);
             const end = userId.substring(userId.length - 4);
-            const middle = '*'.repeat(Math.max(0, userId.length - 8));
+            const middle = '****'; // 固定显示4个*
             return start + middle + end;
         }
 

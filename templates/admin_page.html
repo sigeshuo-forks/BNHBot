@@ -927,7 +927,7 @@
             // 生成表格行
             tbody.innerHTML = pageRegistrations.map(reg => `
                 <tr>
-                    <td style="word-break: break-all;">${reg.id.substring(0, 8)}...</td>
+                    <td style="word-break: break-all;">${reg.id.substring(0, 4)}****${reg.id.substring(reg.id.length - 4)}</td>
                     <td style="word-break: break-all;"><strong>${reg.user_name}</strong></td>
                     <td><span class="identity-badge identity-${(reg.identity || 'Regular').toLowerCase()}">${getIdentityText(reg.identity || 'Regular')}</span></td>
                     <td><span class="exchange-badge exchange-${reg.exchange.toLowerCase()}">${getExchangeName(reg.exchange)}</span></td>
