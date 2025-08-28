@@ -1141,19 +1141,159 @@
         function getCurrentRankings() {
             if (!rankingsData) return [];
             
+            console.log('=== getCurrentRankings 调试信息 ===');
+            console.log('当前排名类型:', currentPeriod);
+            console.log('日排名数据长度:', rankingsData.daily_rankings?.length || 0);
+            console.log('周排名数据长度:', rankingsData.weekly_rankings?.length || 0);
+            console.log('月排名数据长度:', rankingsData.monthly_rankings?.length || 0);
+            
+            let result;
             switch (currentPeriod) {
                 case 'daily':
-                    return rankingsData.daily_rankings;
+                    result = rankingsData.daily_rankings;
+                    break;
                 case 'weekly':
-                    return rankingsData.weekly_rankings;
+                    result = rankingsData.weekly_rankings;
+                    break;
                 case 'monthly':
-                    return rankingsData.monthly_rankings;
+                    result = rankingsData.monthly_rankings;
+                    break;
                 case 'doubled':
                     // 翻仓名单：筛选本月实现翻仓的用户
-                    return getDoubledUsers();
+                    result = getDoubledUsers();
+                    break;
                 default:
-                    return rankingsData.daily_rankings;
+                    result = rankingsData.daily_rankings;
             }
+            
+            // 检查第一个用户的余额历史数据
+            if (result && result.length > 0) {
+                const firstUser = result[0];
+                console.log(`第一个用户 ${firstUser.user_name} 的余额历史数据:`);
+                console.log('  余额历史长度:', firstUser.balance_history?.length || 0);
+                if (firstUser.balance_history && firstUser.balance_history.length > 0) {
+                    console.log('  第一个数据点:', firstUser.balance_history[0]);
+                    console.log('  最后一个数据点:', firstUser.balance_history[firstUser.balance_history.length - 1]);
+                }
+            }
+            
+            return result;
+        }
+        
+        // 获取用于图表显示的排名数据 - 使用统一数据源确保图表数据一致
+        function getChartRankings() {
+            // 始终使用统一数据源，确保图表数据一致
+            return createUnifiedRankingsData() || getCurrentRankings();
+        }
+        
+        // 获取统一的余额历史数据 - 整合所有排名类型的数据源
+        // 修复问题：日排名、周排名、月排名下的图表数据不一致
+        // 原因：不同排名类型的数据源包含不同的余额历史数据
+        // 解决方案：整合所有数据源，使用最完整的余额历史数据
+        function getUnifiedBalanceHistory(userId) {
+            if (!rankingsData) return null;
+            
+            // 优先使用月排名数据（包含30天数据，最完整）
+            if (rankingsData.monthly_rankings) {
+                const monthlyUser = rankingsData.monthly_rankings.find(u => u.user_id === userId);
+                if (monthlyUser && monthlyUser.balance_history && monthlyUser.balance_history.length > 0) {
+                    console.log(`使用月排名数据源 - 用户: ${monthlyUser.user_name}, 数据点: ${monthlyUser.balance_history.length}`);
+                    return monthlyUser.balance_history;
+                }
+            }
+            
+            // 其次使用周排名数据（包含7天数据）
+            if (rankingsData.weekly_rankings) {
+                const weeklyUser = rankingsData.weekly_rankings.find(u => u.user_id === userId);
+                if (weeklyUser && weeklyUser.balance_history && weeklyUser.balance_history.length > 0) {
+                    console.log(`使用周排名数据源 - 用户: ${weeklyUser.user_name}, 数据点: ${weeklyUser.balance_history.length}`);
+                    return weeklyUser.balance_history;
+                }
+            }
+            
+            // 最后使用日排名数据（包含1天数据）
+            if (rankingsData.daily_rankings) {
+                const dailyUser = rankingsData.daily_rankings.find(u => u.user_id === userId);
+                if (dailyUser && dailyUser.balance_history && dailyUser.balance_history.length > 0) {
+                    console.log(`使用日排名数据源 - 用户: ${dailyUser.user_name}, 数据点: ${dailyUser.balance_history.length}`);
+                    return dailyUser.balance_history;
+                }
+            }
+            
+            console.warn(`未找到用户 ${userId} 的余额历史数据`);
+            return null;
+        }
+        
+        // 创建合并后的统一数据源 - 整合所有排名类型的数据
+        // 这样可以在前端统一处理，避免数据不一致问题
+        function createUnifiedRankingsData() {
+            if (!rankingsData) return null;
+            
+            console.log('=== 创建统一数据源 ===');
+            
+            // 使用月排名作为基础（数据最完整）
+            let baseRankings = rankingsData.monthly_rankings || [];
+            if (baseRankings.length === 0) {
+                baseRankings = rankingsData.weekly_rankings || [];
+            }
+            if (baseRankings.length === 0) {
+                baseRankings = rankingsData.daily_rankings || [];
+            }
+            
+            if (baseRankings.length === 0) {
+                console.warn('所有排名数据源都为空');
+                return null;
+            }
+            
+            console.log(`使用基础数据源: ${baseRankings.length} 个用户`);
+            
+            // 为每个用户创建统一的余额历史数据
+            const unifiedRankings = baseRankings.map(user => {
+                // 尝试从所有数据源获取最完整的余额历史
+                let bestBalanceHistory = null;
+                let bestDataPoints = 0;
+                
+                // 检查月排名数据
+                if (rankingsData.monthly_rankings) {
+                    const monthlyUser = rankingsData.monthly_rankings.find(u => u.user_id === user.user_id);
+                    if (monthlyUser && monthlyUser.balance_history && monthlyUser.balance_history.length > bestDataPoints) {
+                        bestBalanceHistory = monthlyUser.balance_history;
+                        bestDataPoints = monthlyUser.balance_history.length;
+                    }
+                }
+                
+                // 检查周排名数据
+                if (rankingsData.weekly_rankings) {
+                    const weeklyUser = rankingsData.weekly_rankings.find(u => u.user_id === user.user_id);
+                    if (weeklyUser && weeklyUser.balance_history && weeklyUser.balance_history.length > bestDataPoints) {
+                        bestBalanceHistory = weeklyUser.balance_history;
+                        bestDataPoints = weeklyUser.balance_history.length;
+                    }
+                }
+                
+                // 检查日排名数据
+                if (rankingsData.daily_rankings) {
+                    const dailyUser = rankingsData.daily_rankings.find(u => u.user_id === user.user_id);
+                    if (dailyUser && dailyUser.balance_history && dailyUser.balance_history.length > bestDataPoints) {
+                        bestBalanceHistory = dailyUser.balance_history;
+                        bestDataPoints = dailyUser.balance_history.length;
+                    }
+                }
+                
+                // 返回合并后的用户数据
+                return {
+                    ...user,
+                    balance_history: bestBalanceHistory || user.balance_history,
+                    unified_data_points: bestDataPoints
+                };
+            });
+            
+            console.log('统一数据源创建完成');
+            unifiedRankings.forEach(user => {
+                console.log(`用户 ${user.user_name}: ${user.unified_data_points || 0} 个数据点`);
+            });
+            
+            return unifiedRankings;
         }
 
         function toggleDetails(userId) {
@@ -1202,8 +1342,9 @@
                 return;
             }
             
-            const rankings = getCurrentRankings();
-            const entry = rankings.find(r => r.user_id === userId);
+            // 使用统一数据源获取用户数据，确保图表数据一致
+            const chartRankings = getChartRankings();
+            const entry = chartRankings.find(r => r.user_id === userId);
             
             if (!entry) {
                 console.error('未找到用户数据，用户ID:', userId);
@@ -1230,8 +1371,12 @@
             // 获取当前选中的时间范围（默认7天）
             const timeRange = '7';
             
+            // 使用统一数据源中的余额历史数据
+            const balanceHistory = entry.balance_history;
+            console.log('使用统一数据源的余额历史数据:', balanceHistory);
+            
             // 准备数据（根据时间范围过滤）
-            const chartData = prepareChartDataWithTimeRange(entry.balance_history, timeRange);
+            const chartData = prepareChartDataWithTimeRange(balanceHistory, timeRange);
             console.log('图表数据:', chartData);
             
             // 获取图表选项
@@ -1667,16 +1812,10 @@
         }
 
         // Chart.js 数据准备函数
+                // 统一的图表数据准备函数 - 所有排名类型都使用相同的数据源
         function prepareChartData(balanceHistory, entry) {
-            const currentPeriod = getCurrentPeriod();
-            
-            console.log('=== 数据准备函数开始 ===');
-            console.log('当前排名类型:', currentPeriod);
+            console.log('=== 统一图表数据准备函数 ===');
             console.log('原始余额历史数据:', balanceHistory);
-            
-            // 根据排名类型处理数据
-            let processedData = [];
-            let labels = [];
             
             if (!balanceHistory || balanceHistory.length === 0) {
                 console.log('余额历史数据为空，返回空数据集');
@@ -1696,111 +1835,21 @@
                 };
             }
             
-            switch (currentPeriod) {
-                case 'daily':
-                    console.log('处理日排名数据...');
-                    console.log('原始余额历史数据长度:', balanceHistory.length);
-                    
-                    // 检查每个数据项的详细信息
-                    balanceHistory.forEach((item, index) => {
-                        console.log(`数据项 ${index}:`, item);
-                        console.log(`  原始日期字符串: "${item.date}"`);
-                        console.log(`  日期类型: ${typeof item.date}`);
-                        
-                        // 尝试解析日期
-                        try {
-                            const date = new Date(item.date);
-                            console.log(`  解析后的日期: ${date}`);
-                            console.log(`  是否为有效日期: ${!isNaN(date.getTime())}`);
-                            console.log(`  年: ${date.getFullYear()}, 月: ${date.getMonth() + 1}, 日: ${date.getDate()}`);
-                        } catch (e) {
-                            console.error(`  日期解析失败:`, e);
-                        }
-                    });
-                    
-                    // 日排名：显示用户加入后每日的变化
-                    // 按日期排序，确保时间顺序正确
-                    const sortedHistory = balanceHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
-                    console.log('排序后的历史数据:', sortedHistory);
-                    
-                    processedData = sortedHistory.map(item => parseFloat(item.balance));
-                    labels = sortedHistory.map(item => {
-                        const date = new Date(item.date);
-                        const label = `${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-                        console.log(`日期: ${item.date} -> 标签: ${label}`);
-                        return label;
-                    });
-                    
-                    console.log('日排名处理结果:');
-                    console.log('  数据:', processedData);
-                    console.log('  标签:', labels);
-                    break;
-                    
-                case 'weekly':
-                    // 周排名：显示用户加入后每周的变化（每周一统计）
-                    const sortedWeeklyHistory = balanceHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
-                    
-                    // 每周取一个数据点（比如每周的第一天）
-                    let currentWeek = null;
-                    sortedWeeklyHistory.forEach(item => {
-                        const date = new Date(item.date);
-                        const weekKey = getWeekKey(date);
-                        
-                        if (weekKey !== currentWeek) {
-                            currentWeek = weekKey;
-                            processedData.push(parseFloat(item.balance));
-                            labels.push(`${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`);
-                        }
-                    });
-                    break;
-                    
-                case 'monthly':
-                    // 月排名：显示用户加入后每月的变化（每月取最后一天的数据）
-                    const sortedMonthlyHistory = balanceHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
-                    
-                    // 按月分组数据
-                    const monthlyGroups = new Map();
-                    sortedMonthlyHistory.forEach(item => {
-                        const date = new Date(item.date);
-                        const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-                        
-                        if (!monthlyGroups.has(monthKey)) {
-                            monthlyGroups.set(monthKey, []);
-                        }
-                        monthlyGroups.get(monthKey).push(item);
-                    });
-                    
-                    // 每月取最后一天的数据作为代表
-                    monthlyGroups.forEach((monthData, monthKey) => {
-                        // 按日期排序，取最后一天
-                        monthData.sort((a, b) => new Date(a.date) - new Date(b.date));
-                        const lastDayOfMonth = monthData[monthData.length - 1];
-                        
-                        processedData.push(parseFloat(lastDayOfMonth.balance));
-                        const date = new Date(lastDayOfMonth.date);
-                        labels.push(`${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`);
-                    });
-                    
-                    console.log('月排名处理结果:');
-                    console.log('  月分组:', Array.from(monthlyGroups.keys()));
-                    console.log('  数据:', processedData);
-                    console.log('  标签:', labels);
-                    break;
-                    
-                default:
-                    const sortedDefaultHistory = balanceHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
-                    processedData = sortedDefaultHistory.map(item => parseFloat(item.balance));
-                    labels = sortedDefaultHistory.map(item => {
-                        const date = new Date(item.date);
-                        return `${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-                    });
-            }
+            // 统一处理：按日期排序，显示完整历史
+            const sortedHistory = balanceHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
+            console.log('排序后的历史数据:', sortedHistory);
             
-            console.log('=== 最终返回结果 ===');
-            console.log('标签数组:', labels);
-            console.log('数据数组:', processedData);
+            const processedData = sortedHistory.map(item => parseFloat(item.balance));
+            const labels = sortedHistory.map(item => {
+                const date = new Date(item.date);
+                return `${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+            });
             
-            const result = {
+            console.log('处理结果:');
+            console.log('  标签:', labels);
+            console.log('  数据:', processedData);
+            
+            return {
                 labels: labels,
                 datasets: [{
                     label: '账户余额',
@@ -1814,148 +1863,9 @@
                     pointHoverRadius: 6
                 }]
             };
-            
-            console.log('返回的图表数据:', result);
-            return result;
         }
         
-        // 获取周标识的辅助函数
-        function getWeekKey(date) {
-            const year = date.getFullYear();
-            const week = getWeekOfYear(date);
-            return `${year}-W${week.toString().padStart(2, '0')}`;
-        }
         
-        // 获取一年中的第几周
-        function getWeekOfYear(date) {
-            const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-            const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
-            return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-        }
-        
-        // Chart.js 配置函数
-        function getChartOptions(entry) {
-            const currentPeriod = getCurrentPeriod();
-            let periodText = '';
-            
-            // 获取数据时间范围
-            let timeRangeText = '';
-            if (entry.balance_history && entry.balance_history.length > 0) {
-                const sortedHistory = entry.balance_history.sort((a, b) => new Date(a.date) - new Date(b.date));
-                const firstDate = new Date(sortedHistory[0].date);
-                const lastDate = new Date(sortedHistory[sortedHistory.length - 1].date);
-                
-                const firstDateStr = `${(firstDate.getMonth() + 1).toString().padStart(2, '0')}-${firstDate.getDate().toString().padStart(2, '0')}`;
-                const lastDateStr = `${(lastDate.getMonth() + 1).toString().padStart(2, '0')}-${lastDate.getDate().toString().padStart(2, '0')}`;
-                
-                if (firstDateStr === lastDateStr) {
-                    timeRangeText = ` (${firstDateStr})`;
-                } else {
-                    timeRangeText = ` (${firstDateStr} 至 ${lastDateStr})`;
-                }
-            }
-            
-            switch (currentPeriod) {
-                case 'daily':
-                    periodText = `日排名 - 用户加入后每日变化${timeRangeText}`;
-                    break;
-                case 'weekly':
-                    periodText = `周排名 - 用户加入后每周变化${timeRangeText}`;
-                    break;
-                case 'monthly':
-                    periodText = `月排名 - 用户加入后每月变化${timeRangeText}`;
-                    break;
-                default:
-                    periodText = `日排名 - 用户加入后每日变化${timeRangeText}`;
-            }
-            
-            return {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    title: {
-                        display: true,
-                        text: `📈 ${entry.user_name} 的余额趋势图 - ${periodText}`,
-                        font: {
-                            size: 16,
-                            weight: 'bold'
-                        },
-                        color: '#333'
-                    },
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        callbacks: {
-                            title: function(context) {
-                                const dataIndex = context[0].dataIndex;
-                                const labels = context[0].chart.data.labels;
-                                return labels[dataIndex] || '';
-                            },
-                            label: function(context) {
-                                return `余额: $${formatNumber(context.parsed.y)}`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        type: 'category',
-                        title: {
-                            display: true,
-                            text: '日期',
-                            font: {
-                                size: 14,
-                                weight: 'bold'
-                            }
-                        },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        },
-                        ticks: {
-                            maxRotation: 45,
-                            minRotation: 0,
-                            autoSkip: false,
-                            maxTicksLimit: 15,
-                            callback: function(value, index, values) {
-                                // 确保标签完整显示
-                                const label = this.getLabelForValue(value);
-                                if (label && label.length > 0) {
-                                    return label;
-                                }
-                                return '';
-                            }
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: '余额 (USDT)',
-                            font: {
-                                size: 14,
-                                weight: 'bold'
-                            }
-                        },
-                        grid: {
-                            color: 'rgba(0, 0, 0, 0.1)'
-                        },
-                        ticks: {
-                            callback: function(value) {
-                                return '$' + formatNumber(value);
-                            }
-                        }
-                    }
-                },
-                interaction: {
-                    mode: 'nearest',
-                    axis: 'x',
-                    intersect: false
-                }
-            };
-        }
         
         // 获取翻仓用户列表
         function getDoubledUsers() {
@@ -2216,16 +2126,21 @@
         function drawChartWithTimeRange(userId, timeRange) {
             console.log('根据时间范围绘制图表，用户ID:', userId, '时间范围:', timeRange);
             
-            const rankings = getCurrentRankings();
-            const entry = rankings.find(r => r.user_id === userId);
+            // 使用统一数据源获取用户数据，确保图表数据一致
+            const chartRankings = getChartRankings();
+            const entry = chartRankings.find(r => r.user_id === userId);
             
             if (!entry || !entry.balance_history) {
                 console.error('未找到用户数据或余额历史');
                 return;
             }
             
+            // 使用统一数据源中的余额历史数据
+            const balanceHistory = entry.balance_history;
+            console.log('使用统一数据源的余额历史数据:', balanceHistory);
+            
             // 准备数据（根据时间范围过滤）
-            const chartData = prepareChartDataWithTimeRange(entry.balance_history, timeRange);
+            const chartData = prepareChartDataWithTimeRange(balanceHistory, timeRange);
             console.log('图表数据:', chartData);
             
             // 获取图表选项
