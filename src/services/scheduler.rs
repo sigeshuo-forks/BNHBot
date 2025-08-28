@@ -63,10 +63,8 @@ impl Scheduler {
         
         info!("✅ 所有定时任务已启动");
         
-        // 主循环保持运行
-        loop {
-            tokio::time::sleep(TokioDuration::from_secs(3600)).await; // 每小时检查一次
-        }
+        // 主线程不阻塞，让后台任务独立运行
+        Ok(())
     }
 
     // 每小时排名更新任务
@@ -74,10 +72,31 @@ impl Scheduler {
         info!("🔄 启动每小时排名更新任务...");
         
         loop {
-            // 直接等待3600秒（1小时）
-            let sleep_duration = 3600;
+            let now = Utc::now();
             
-            info!("⏰ 下次排名更新时间: 1小时后, 等待 {} 秒", sleep_duration);
+            // 计算到下一个整点的秒数
+            let current_minute = now.minute() as u64;
+            let current_second = now.second() as u64;
+            let sleep_duration = (60 - current_minute) * 60 - current_second;
+            
+            // 计算下一个整点时间（用于显示）
+            let next_hour = (now.hour() + 1) % 24;
+            let next_hour_china = if next_hour == 0 {
+                // 跨天的情况
+                let tomorrow = now.date_naive() + chrono::Duration::days(1);
+                let next_time = tomorrow.and_hms_opt(0, 0, 0).unwrap();
+                let next_utc = Utc.from_local_datetime(&next_time).unwrap();
+                TimezoneUtil::utc_to_china(next_utc)
+            } else {
+                // 同一天的情况
+                let next_time = now.date_naive().and_hms_opt(next_hour, 0, 0).unwrap();
+                let next_utc = Utc.from_local_datetime(&next_time).unwrap();
+                TimezoneUtil::utc_to_china(next_utc)
+            };
+            
+            info!("⏰ 下次排名更新时间: {} (中国时间), 等待 {} 秒", 
+                  TimezoneUtil::format_china_time(next_hour_china), 
+                  sleep_duration);
             
             sleep(TokioDuration::from_secs(sleep_duration)).await;
             
