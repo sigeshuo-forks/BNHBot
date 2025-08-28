@@ -74,17 +74,10 @@ impl Scheduler {
         info!("🔄 启动每小时排名更新任务...");
         
         loop {
-            let now = Utc::now();
-            let next_hour = now + Duration::hours(1);
-            let next_hour_start = next_hour.date_naive().and_hms_opt(next_hour.hour(), 0, 0).unwrap();
-            let next_hour_utc = TimezoneUtil::china_timezone().from_local_datetime(&next_hour_start).unwrap();
-            let next_hour_utc = TimezoneUtil::china_to_utc(next_hour_utc);
+            // 直接等待3600秒（1小时）
+            let sleep_duration = 3600;
             
-            let sleep_duration = (next_hour_utc - now).num_seconds() as u64;
-            
-            info!("⏰ 下次排名更新时间: {} (中国时间), 等待 {} 秒", 
-                  TimezoneUtil::format_china_time(TimezoneUtil::utc_to_china(next_hour_utc)), 
-                  sleep_duration);
+            info!("⏰ 下次排名更新时间: 1小时后, 等待 {} 秒", sleep_duration);
             
             sleep(TokioDuration::from_secs(sleep_duration)).await;
             

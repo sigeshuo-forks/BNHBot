@@ -59,8 +59,8 @@ impl DingTalkWebhookHandler {
         info!("🔧 检查钉钉机器人配置...");
         
         // 发送测试消息
-        let test_message = "🤖 钉钉机器人连接测试\n✅ 配置正常，可以接收消息";
-        self.dingtalk_bot.send_text_message(test_message).await?;
+        // let test_message = "🤖 钉钉机器人连接测试\n✅ 配置正常，可以接收消息";
+        // self.dingtalk_bot.send_text_message(test_message).await?;
         
         info!("✅ 钉钉机器人配置检查完成");
         Ok(())
