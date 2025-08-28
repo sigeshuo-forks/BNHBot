@@ -268,11 +268,12 @@ async fn start_web_server(
     config: AppConfig,
 ) -> Result<()> {
     // 创建调度器实例用于管理API
-    let scheduler = Scheduler::new(
+    let _scheduler = Scheduler::new(
         database.clone(),
         exchange_service.clone(),
         dingtalk_bot.clone(),
         ranking_service.clone(),
+        config.web_base_url.clone(),
     );
             let webhook_handler = DingTalkWebhookHandler::new(database.clone(), dingtalk_bot.clone(), config.web_base_url.clone());
     
@@ -897,9 +898,10 @@ async fn start_full_service(
     let scheduler_exchange_service = exchange_service.clone();
     let scheduler_dingtalk_bot = dingtalk_bot.clone();
     let scheduler_ranking_service = ranking_service.clone();
+    let scheduler_web_base_url = config.web_base_url.clone();
     
     tokio::spawn(async move {
-        let scheduler = Scheduler::new(scheduler_database, scheduler_exchange_service, scheduler_dingtalk_bot, scheduler_ranking_service);
+        let scheduler = Scheduler::new(scheduler_database, scheduler_exchange_service, scheduler_dingtalk_bot, scheduler_ranking_service, scheduler_web_base_url);
         if let Err(e) = scheduler.start().await {
             error!("定时任务调度器运行失败: {}", e);
         }

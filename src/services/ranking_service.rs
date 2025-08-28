@@ -358,9 +358,16 @@ impl RankingService {
     /// 获取钉钉排名消息（前5名）
     pub async fn get_dingtalk_ranking_message(&self, ranking_url: &str) -> Result<DingTalkRankingMessage> {
         let today = Utc::now().format("%Y-%m-%d").to_string();
+        info!("🔍 获取钉钉排名消息 - 日期: {}", today);
+        
         let daily_rankings = self.get_fixed_rankings("daily", &today).await?;
-        let top_rankings = daily_rankings.into_iter().take(5).collect();
+        info!("📊 获取到日榜排名数据: {} 位用户", daily_rankings.len());
+        
+        let top_rankings: Vec<RankingEntry> = daily_rankings.into_iter().take(5).collect();
+        info!("🏆 提取前5名排名数据: {} 位用户", top_rankings.len());
+        
         let total_participants = self.database.get_all_approved_users_with_exchanges().await?.len() as u32;
+        info!("👥 总参赛人数: {} 人", total_participants);
 
         Ok(DingTalkRankingMessage {
             top_rankings,

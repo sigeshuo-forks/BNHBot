@@ -12,15 +12,17 @@ pub struct Scheduler {
     exchange_service: ExchangeService,
     dingtalk_bot: DingTalkBot,
     ranking_service: RankingService,
+    web_base_url: String,
 }
 
 impl Scheduler {
-    pub fn new(database: DatabaseService, exchange_service: ExchangeService, dingtalk_bot: DingTalkBot, ranking_service: RankingService) -> Self {
+    pub fn new(database: DatabaseService, exchange_service: ExchangeService, dingtalk_bot: DingTalkBot, ranking_service: RankingService, web_base_url: String) -> Self {
         Self {
             database,
             exchange_service,
             dingtalk_bot,
             ranking_service,
+            web_base_url,
         }
     }
 
@@ -54,7 +56,7 @@ impl Scheduler {
         
         // 设置为中国时间每日8点执行
         let china_tz = TimezoneUtil::china_timezone();
-        let target_time_china = now_china.date_naive().and_hms_opt(8, 0, 0).unwrap();
+        let target_time_china = now_china.date_naive().and_hms_opt(8, 0, 30).unwrap();
         let target_datetime_china = china_tz.from_local_datetime(&target_time_china).unwrap();
         
         // 转换回UTC时间
@@ -72,23 +74,33 @@ impl Scheduler {
         info!("开始执行每日余额收集和排名任务...");
         
         // 1. 收集所有用户的余额数据
+        info!("🔄 开始收集所有用户余额数据...");
         let collection_result = self.ranking_service.collect_all_balances().await?;
-        info!("余额收集结果: {}", collection_result.message);
+        info!("✅ 余额收集完成 - 结果: {}", collection_result.message);
+        info!("📊 收集统计: 成功 {} 个, 失败 {} 个", collection_result.collected_count, collection_result.failed_count);
         
         if collection_result.collected_count == 0 {
             info!("没有成功收集到任何余额数据，跳过排名计算");
             return Ok(());
         }
         
-        // 2. 生成钉钉排名消息（前5名）
-        let ranking_url = "http://localhost:3000/rankings"; // TODO: 从配置获取
-        let ranking_message = self.ranking_service.get_dingtalk_ranking_message(ranking_url).await?;
+        // 2. 等待一小段时间确保数据库事务完成
+        info!("⏳ 等待数据库事务完成...");
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         
-        // 3. 发送钉钉排名通知
+        // 3. 生成钉钉排名消息（前5名）
+        info!("🔄 开始生成钉钉排名消息...");
+        let ranking_url = format!("{}/rankings", self.web_base_url);
+        info!("🔗 排名页面URL: {}", ranking_url);
+        let ranking_message = self.ranking_service.get_dingtalk_ranking_message(&ranking_url).await?;
+        info!("✅ 排名消息生成成功 - 前{}名用户, 总参赛人数: {}", ranking_message.top_rankings.len(), ranking_message.total_participants);
+        
+        // 4. 发送钉钉排名通知
+        info!("📤 开始发送钉钉排名通知...");
         if let Err(e) = self.send_ranking_notification(&ranking_message).await {
-            error!("发送钉钉排名通知失败: {}", e);
+            error!("❌ 发送钉钉排名通知失败: {}", e);
         } else {
-            info!("每日排名播报发送成功");
+            info!("✅ 每日排名播报发送成功");
         }
         
         Ok(())
