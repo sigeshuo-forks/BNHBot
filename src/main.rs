@@ -11,7 +11,6 @@ use axum::{
     http::StatusCode,
     Json, Router,
     response::Html,
-    extract::State,
 };
 
 use tower_http::cors::CorsLayer;
@@ -214,14 +213,14 @@ async fn main() -> Result<()> {
     } else {
         info!("✅ 钉钉机器人配置检查成功");
         
-        // // 发送启动通知到群
-        // info!("📢 发送启动通知到钉钉群...");
-        // let at_all = env::var("DINGTALK_AT_ALL").unwrap_or_else(|_| "false".to_string()).parse().unwrap_or(false);
-        // if let Err(e) = dingtalk_bot.send_startup_notification(at_all, &config.web_base_url).await {
-        //     warn!("⚠️  发送启动通知失败: {}", e);
-        // } else {
-        //     info!("✅ 启动通知发送成功");
-        // }
+        // 发送启动通知到群
+        info!("📢 发送启动通知到钉钉群...");
+        let at_all = env::var("DINGTALK_AT_ALL").unwrap_or_else(|_| "false".to_string()).parse().unwrap_or(false);
+        if let Err(e) = dingtalk_bot.send_startup_notification(at_all, &config.web_base_url).await {
+            warn!("⚠️  发送启动通知失败: {}", e);
+        } else {
+            info!("✅ 启动通知发送成功");
+        }
     }
     
     // 检查是否有命令行参数
@@ -351,6 +350,14 @@ async fn start_web_server(
             .with_state(ranking_service.clone())
             .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
 
+        // 需要钉钉机器人的管理API路由
+        let dingtalk_admin_routes = Router::new()
+            .route("/api/admin/trigger-hourly-update", post(handlers::admin_ranking::trigger_hourly_update))
+            .route("/api/admin/trigger-top5-broadcast", post(handlers::admin_ranking::trigger_top5_broadcast))
+            .route("/api/admin/check-congratulations", post(handlers::admin_ranking::check_congratulations))
+            .with_state((ranking_service.clone(), dingtalk_bot.clone()))
+            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+
 
 
         // 管理页面路由（不需要服务器端认证，由前端JavaScript处理）
@@ -369,6 +376,7 @@ async fn start_web_server(
             .merge(ranking_admin_routes)
             .merge(manual_ranking_admin_routes)
             .merge(update_ranking_admin_routes)
+            .merge(dingtalk_admin_routes)
             .merge(admin_page_routes)
             .layer(axum::middleware::from_fn(security_headers_middleware))
             .layer(CorsLayer::permissive());

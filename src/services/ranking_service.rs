@@ -376,6 +376,12 @@ impl RankingService {
             ranking_url: ranking_url.to_string(),
         })
     }
+
+    /// 公共方法：更新固定排名表（用于外部调用）
+    pub async fn update_fixed_rankings_public(&self) -> Result<()> {
+        let today = Utc::now().format("%Y-%m-%d").to_string();
+        self.update_fixed_rankings(&today).await
+    }
 }
 
 

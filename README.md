@@ -1,341 +1,162 @@
-# BNHBot - 钉钉机器人交易所余额播报系统
+# BNHBot - 交易大赛机器人
 
-BNHBot 是一个基于 Rust 开发的钉钉机器人系统，用于每日自动播报用户在各大交易所的账户余额。
+BNHBot 是一个专为交易大赛设计的自动化机器人，支持多交易所API集成、实时排名计算、钉钉群通知等功能。
 
-## 功能特性
+## 🚀 主要功能
 
-- 🚀 **多交易所支持**: 支持币安(Binance)、欧易(OKX)、WEEX 三大交易所
-- ⏰ **定时播报**: 每日早上8点自动查询并播报所有用户余额
-- 🔐 **安全存储**: 使用 SQLite 数据库安全存储用户API配置
-- 📱 **钉钉集成**: 通过钉钉机器人发送格式化的余额报告
-- 🛡️ **API安全**: 支持API签名验证，确保安全性
-- 📊 **余额统计**: 自动计算USDT等值，提供资产总览
-- 📝 **报名系统**: 支持多种类型的用户报名和审核流程
+### 1. 用户管理
+- 用户注册和审核
+- 多交易所API集成（Binance、OKX、Weex）
+- 身份验证和权限管理
 
-## 系统架构
+### 2. 排名系统
+- 实时余额监控
+- 日排名、周排名、月排名
+- 翻仓用户识别和祝贺
+- 累积收益率计算
 
-```
-BNHBot/
-├── src/
-│   ├── models/          # 数据模型
-│   ├── services/        # 核心服务
-│   ├── handlers/        # 命令处理
-│   └── utils/           # 工具函数
-├── 数据库服务           # SQLite数据存储
-├── 交易所服务           # 三大交易所API集成
-├── 钉钉机器人服务       # 消息发送
-├── 定时任务调度器       # 每日8点执行
-└── 报名系统             # 用户报名和审核管理
-```
+### 3. 定时任务系统 ⏰
+- **每小时排名更新**：自动收集用户余额并更新排名
+- **每日晚上8点Top5播报**：在钉钉群播报前5名排名
+- **翻仓用户即时祝贺**：发现翻仓用户立即发送祝贺消息
 
-## 安装和配置
+### 4. 钉钉集成
+- 自动排名播报
+- 翻仓祝贺通知
+- 管理员手动触发功能
 
-### 1. 环境要求
+## 🛠️ 技术架构
 
-- Rust 1.70+
-- SQLite 3.x
+- **后端**: Rust + Axum + SQLite
+- **前端**: HTML + CSS + JavaScript + Chart.js
+- **数据库**: SQLite
+- **定时任务**: Tokio异步运行时
+- **API集成**: 多交易所REST API
 
-### 2. 克隆项目
+## 📋 环境变量配置
 
-```bash
-git clone <repository-url>
-cd BNHBot
-```
-
-### 3. 安装依赖
+创建 `.env` 文件并配置以下变量：
 
 ```bash
-cargo build
-```
-
-### 4. 配置环境变量
-
-复制 `env.example` 为 `.env` 并配置：
-
-```bash
-cp env.example .env
-```
-
-编辑 `.env` 文件：
-
-```env
 # 钉钉机器人配置
 DINGTALK_WEBHOOK=https://oapi.dingtalk.com/robot/send?access_token=YOUR_ACCESS_TOKEN
 DINGTALK_SECRET=YOUR_SECRET_KEY
+DINGTALK_AT_ALL=false
 
 # 数据库配置
 DATABASE_URL=sqlite:data/bnhbot.db
+
+# Web服务器配置
+WEB_SERVER_HOST=127.0.0.1
+WEB_SERVER_PORT=3000
+WEB_SERVER_BASE_URL=http://localhost:3000
 
 # 日志级别
 RUST_LOG=info
 ```
 
-### 5. 获取钉钉机器人配置
+## 🚀 快速开始
 
-1. 在钉钉群中添加自定义机器人
-2. 获取 Webhook URL 和 Secret
-3. 配置到 `.env` 文件中
-
-## 快速开始
-
+### 1. 安装依赖
 ```bash
-# 1. 克隆项目
-git clone <repository-url>
-cd BNHBot
+cargo install
+```
 
-# 2. 安装依赖
-cargo build
-
-# 3. 配置环境变量
+### 2. 配置环境变量
+```bash
 cp env.example .env
-# 编辑 .env 文件，配置钉钉机器人信息
-# 详细配置说明请参考 [CONFIGURATION.md](CONFIGURATION.md)
+# 编辑 .env 文件，填入你的配置
+```
 
-# 4. 启动完整服务
+### 3. 运行服务
+```bash
 cargo run
-# 或者使用 make 命令
-make run
 ```
 
-启动成功后，你可以：
-- 🌐 访问 http://localhost:3000 查看系统主页
-- 📝 访问 http://localhost:3000/register 进行用户报名
-- ⚙️ 通过钉钉机器人进行交互
+### 4. 访问服务
+- 报名表单: http://localhost:3000/register
+- 排名页面: http://localhost:3000/rankings
+- 管理界面: http://localhost:3000/admin
 
-## 使用方法
+## 📊 定时任务详解
 
-### 1. 启动完整服务（推荐）
+### 每小时排名更新
+- **执行时间**: 每小时整点
+- **功能**: 
+  - 收集所有用户余额数据
+  - 更新排名表
+  - 检查翻仓用户并发送祝贺
 
-```bash
-# 直接启动所有功能
-cargo run
+### 每日Top5播报
+- **执行时间**: 每日晚上8点（中国时间）
+- **功能**:
+  - 播报前5名用户排名
+  - 显示用户详细信息
+  - 包含排名页面链接
 
-# 或者使用 make 命令
-make run
-```
+### 翻仓用户监控
+- **执行频率**: 每5分钟检查一次
+- **功能**:
+  - 实时监控用户翻仓状态
+  - 自动发送祝贺消息
+  - 避免重复祝贺
 
-启动后会自动运行：
-- ✅ 定时任务调度器（每日8点执行余额查询）
-- ✅ Web服务器（端口3000，提供报名表单和管理界面）
-- ✅ 钉钉机器人服务
-- ✅ 数据库服务
+## 🔧 管理API
 
-### 2. 命令行模式（高级用户）
+### 手动触发功能
+- `POST /api/admin/trigger-hourly-update` - 手动触发每小时排名更新
+- `POST /api/admin/trigger-top5-broadcast` - 手动触发Top5播报
+- `POST /api/admin/check-congratulations` - 手动检查翻仓祝贺
+- `POST /api/admin/update-rankings` - 手动更新排名表
 
-如果需要使用命令行工具，可以添加参数：
+### 用户管理
+- `GET /api/admin/registrations` - 获取所有注册用户
+- `POST /api/admin/registrations/:id/review` - 审核用户注册
+- `DELETE /api/admin/registrations/:id` - 删除用户注册
 
-```bash
-# 添加用户（不推荐，建议使用报名系统）
-cargo run -- add-user --dingtalk-id "user123" --name "张三"
-```
+## 📈 排名算法
 
-### 2. 配置交易所API
+### 排名计算
+- **日排名**: 基于1天的余额变化
+- **周排名**: 基于7天的余额变化
+- **月排名**: 基于30天的余额变化
 
-```bash
-# 币安
-cargo run -- add-exchange \
-  --dingtalk-id "user123" \
-  --exchange "binance" \
-  --api-key "your_api_key" \
-  --secret-key "your_secret_key"
+### 翻仓识别
+- 用户累积收益率 ≥ 100% 时自动识别为翻仓
+- 系统会记录翻仓日期和金额
+- 避免重复发送祝贺消息
 
-# 欧易（需要passphrase）
-cargo run -- add-exchange \
-  --dingtalk-id "user123" \
-  --exchange "okx" \
-  --api-key "your_api_key" \
-  --secret-key "your_secret_key" \
-  --passphrase "your_passphrase"
+## 🎯 使用场景
 
-# WEEX
-cargo run -- add-exchange \
-  --dingtalk-id "user123" \
-  --exchange "weex" \
-  --api-key "your_api_key" \
-  --secret-key "your_secret_key"
-```
+1. **交易大赛管理**: 自动化排名计算和播报
+2. **用户激励**: 翻仓用户即时祝贺
+3. **数据监控**: 实时余额和收益率跟踪
+4. **群组管理**: 钉钉群自动化通知
 
-### 3. 查询用户余额
-
-```bash
-cargo run -- query-balance --dingtalk-id "user123"
-```
-
-### 4. 手动触发余额查询
-
-```bash
-cargo run -- trigger-query
-```
-
-### 5. 启动定时任务
-
-```bash
-cargo run -- start-scheduler
-```
-
-## 报名系统使用
-
-### 6. 创建新报名
-
-```bash
-cargo run -- registration create \
-  --dingtalk-id "user123" \
-  --registration-type "exchange" \
-  --title "申请绑定币安API" \
-  --content "需要绑定币安API进行余额查询" \
-  --contact-info "13800138000"
-```
-
-### 7. 查询用户报名记录
-
-```bash
-cargo run -- registration query --dingtalk-id "user123"
-```
-
-### 8. 审核报名
-
-```bash
-cargo run -- registration review \
-  --registration-id "uuid-here" \
-  --status "approved" \
-  --admin-notes "审核通过" \
-  --admin-id "admin-uuid"
-```
-
-### 9. 查看待审核列表
-
-```bash
-cargo run -- registration pending
-```
-
-### 10. 查看报名统计
-
-```bash
-cargo run -- registration stats
-```
-
-## 支持的交易所
-
-### 币安 (Binance)
-- API版本: v3
-- 支持功能: 账户余额查询
-- 特殊要求: 需要API Key和Secret Key
-
-### 欧易 (OKX)
-- API版本: v5
-- 支持功能: 账户余额查询
-- 特殊要求: 需要API Key、Secret Key和Passphrase
-
-### WEEX
-- API版本: v1
-- 支持功能: 账户余额查询
-- 特殊要求: 需要API Key和Secret Key
-
-## 报名系统功能
-
-### 支持的报名类型
-- **交易所API绑定**: 申请绑定交易所API进行余额查询
-- **活动报名**: 参与各类活动和会议
-- **培训报名**: 参加培训和课程
-- **其他**: 其他类型的申请和报名
-
-### 报名流程
-1. **用户发起**: 在钉钉群@机器人或通过Web表单
-2. **信息填写**: 填写报名类型、标题、内容和联系信息
-3. **自动通知**: 机器人通知管理员有新报名
-4. **审核处理**: 管理员审核并更新状态
-5. **结果通知**: 机器人通知用户审核结果
-
-### 审核状态
-- **待审核**: 新提交的报名，等待管理员处理
-- **已通过**: 审核通过，可以进行后续操作
-- **已拒绝**: 审核不通过，需要重新申请
-- **已取消**: 用户或管理员取消的报名
-
-## 数据库结构
-
-系统使用 SQLite 数据库存储以下信息：
-
-- **users**: 用户基本信息
-- **user_exchanges**: 用户交易所配置
-- **balances**: 余额记录历史
-- **registrations**: 用户报名记录
-
-## 安全注意事项
-
-1. **API密钥安全**: 请妥善保管交易所API密钥，不要泄露给他人
-2. **权限控制**: 建议只给API读取权限，避免交易权限
-3. **网络安全**: 确保运行环境网络安全，避免API密钥被窃取
-4. **定期更新**: 建议定期更换API密钥
-
-## 故障排除
+## 🔍 故障排除
 
 ### 常见问题
-
-1. **钉钉消息发送失败**
-   - 检查 Webhook URL 是否正确
-   - 确认机器人是否被踢出群聊
-   - 检查网络连接
-
-2. **交易所API调用失败**
-   - 验证API密钥是否正确
-   - 检查API权限设置
-   - 确认网络连接和防火墙设置
-
-3. **数据库连接失败**
-   - 检查数据库文件权限
-   - 确认SQLite版本兼容性
+1. **钉钉消息发送失败**: 检查Webhook配置和签名密钥
+2. **排名数据不更新**: 检查交易所API配置和网络连接
+3. **定时任务不执行**: 检查系统时间和日志输出
 
 ### 日志查看
-
 ```bash
-RUST_LOG=debug cargo run -- <command>
+# 设置日志级别
+export RUST_LOG=info
+
+# 运行服务查看详细日志
+cargo run
 ```
 
-### 报名系统管理
+## 🤝 贡献
 
-```bash
-# 查看报名系统帮助
-cargo run -- registration --help
+欢迎提交Issue和Pull Request来改进BNHBot！
 
-# 创建报名
-cargo run -- registration create --help
-
-# 查询报名
-cargo run -- registration query --help
-
-# 审核报名
-cargo run -- registration review --help
-```
-
-## 开发计划
-
-- [ ] 支持更多交易所（火币、Gate.io等）
-- [ ] 添加价格预警功能
-- [ ] 支持Telegram机器人
-- [ ] 添加Web管理界面
-- [ ] 支持多钉钉群组
-- [ ] 添加余额变化趋势分析
-- [x] 报名系统基础功能
-- [ ] 报名系统Web管理界面
-- [ ] 支持报名模板和自定义字段
-- [ ] 添加报名数据导出功能
-- [ ] 支持批量审核操作
-
-## 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-## 许可证
+## 📄 许可证
 
 MIT License
 
-## 联系方式
-
-如有问题，请通过以下方式联系：
-- 提交 GitHub Issue
-- 发送邮件至：[rainweic@gmail.com](rainweic@gmail.com)
-
 ---
 
-**免责声明**: 本工具仅用于学习和个人使用，请遵守相关法律法规和交易所使用条款。使用本工具产生的任何损失，开发者不承担责任。
+**注意**: 请确保在生产环境中正确配置钉钉机器人权限和交易所API密钥，并定期备份数据库文件。
