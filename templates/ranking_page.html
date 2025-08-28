@@ -1103,7 +1103,7 @@
                                     </span>
                                 </div>
                                 <div class="detail-item">
-                                    <span class="detail-label">变化比例:</span>
+                                    <span class="detail-label">累积收益率:</span>
                                     <span class="detail-value ${entry.change_percentage >= 0 ? 'positive' : 'negative'}">
                                         ${entry.change_percentage >= 0 ? '+' : ''}${formatNumber(entry.change_percentage)}%
                                     </span>
@@ -1426,7 +1426,7 @@
             // 创建新图表
             const ctx = canvasElement.getContext('2d');
             canvasElement.chart = new Chart(ctx, {
-                type: 'line',
+                type: 'bar', // 改为柱状图
                 data: chartData,
                 options: chartOptions
             });
@@ -1454,7 +1454,7 @@
             } else {
                 document.querySelector('.stat-card:nth-child(1) .stat-label').textContent = '参赛人数';
                 document.querySelector('.stat-card:nth-child(2) .stat-label').textContent = '总资产价值';
-                document.querySelector('.stat-card:nth-child(3) .stat-label').textContent = '最大涨幅';
+                document.querySelector('.stat-card:nth-child(3) .stat-label').textContent = '最高累积收益率';
                 document.getElementById('topGainer').textContent = formatNumber(topGainer) + '%';
             }
             
@@ -1822,45 +1822,62 @@
                 return {
                     labels: [],
                     datasets: [{
-                        label: '账户余额',
+                        label: '每日收益额',
                         data: [],
+                        backgroundColor: 'rgba(102, 126, 234, 0.8)',
                         borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 4,
-                        pointHoverRadius: 6
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        borderSkipped: false
                     }]
                 };
             }
             
-            // 统一处理：按日期排序，显示完整历史
+            // 统一处理：按日期排序，计算每日收益额
             const sortedHistory = balanceHistory.sort((a, b) => new Date(a.date) - new Date(b.date));
             console.log('排序后的历史数据:', sortedHistory);
             
-            const processedData = sortedHistory.map(item => parseFloat(item.balance));
-            const labels = sortedHistory.map(item => {
-                const date = new Date(item.date);
-                return `${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-            });
+            // 计算每日收益额（相对于前一天的收益）
+            const processedData = [];
+            const labels = [];
+            
+            for (let i = 0; i < sortedHistory.length; i++) {
+                const currentBalance = parseFloat(sortedHistory[i].balance);
+                const date = new Date(sortedHistory[i].date);
+                const label = `${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+                
+                if (i === 0) {
+                    // 第一天，收益额为0（没有前一天数据）
+                    processedData.push(0);
+                } else {
+                    // 计算相对于前一天的收益额
+                    const previousBalance = parseFloat(sortedHistory[i - 1].balance);
+                    const dailyProfit = currentBalance - previousBalance;
+                    processedData.push(dailyProfit);
+                }
+                
+                labels.push(label);
+            }
             
             console.log('处理结果:');
             console.log('  标签:', labels);
-            console.log('  数据:', processedData);
+            console.log('  每日收益额:', processedData);
             
             return {
                 labels: labels,
                 datasets: [{
-                    label: '账户余额',
+                    label: '每日收益额',
                     data: processedData,
-                    borderColor: '#667eea',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                    borderWidth: 3,
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 4,
-                    pointHoverRadius: 6
+                    backgroundColor: processedData.map(value => 
+                        value >= 0 ? 'rgba(40, 167, 69, 0.4)' : 'rgba(220, 53, 69, 0.4)'
+                    ),
+                    borderColor: processedData.map(value => 
+                        value >= 0 ? '#28a745' : '#dc3545'
+                    ),
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    borderSkipped: false,
+                    type: 'bar' // 改为柱状图
                 }]
             };
         }
@@ -2028,7 +2045,7 @@
             drawChartWithTimeRange(userId, timeRange);
         }
         
-        // 根据时间范围准备图表数据（双Y轴：余额 + 变化率）
+        // 根据时间范围准备图表数据（双Y轴：每日收益额 + 累积收益率）
         function prepareChartDataWithTimeRange(balanceHistory, timeRange) {
             console.log('=== 根据时间范围准备图表数据 ===');
             console.log('时间范围:', timeRange, '天');
@@ -2069,10 +2086,10 @@
             
             // 准备标签和数据
             const labels = [];
-            const balanceData = [];
-            const changeRateData = [];
+            const dailyProfitData = [];
+            const cumulativeReturnData = [];
             
-            // 计算初始余额（用于计算变化率）
+            // 计算初始余额（用于计算累积收益率）
             const initialBalance = parseFloat(filteredHistory[0].balance);
             
             filteredHistory.forEach((item, index) => {
@@ -2082,41 +2099,53 @@
                 // 标签：月-日格式
                 labels.push(`${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`);
                 
-                // 余额数据
-                balanceData.push(balance);
+                // 每日收益额数据
+                if (index === 0) {
+                    dailyProfitData.push(0); // 第一天收益额为0
+                } else {
+                    const previousBalance = parseFloat(filteredHistory[index - 1].balance);
+                    const dailyProfit = balance - previousBalance;
+                    dailyProfitData.push(dailyProfit);
+                }
                 
-                // 变化率数据（相对于初始余额的百分比）
-                const changeRate = ((balance - initialBalance) / initialBalance) * 100;
-                changeRateData.push(changeRate);
+                // 累积收益率数据（相对于初始余额的百分比）
+                const cumulativeReturn = ((balance - initialBalance) / initialBalance) * 100;
+                cumulativeReturnData.push(cumulativeReturn);
             });
             
             console.log('处理结果:');
             console.log('  标签:', labels);
-            console.log('  余额数据:', balanceData);
-            console.log('  变化率数据:', changeRateData);
+            console.log('  每日收益额数据:', dailyProfitData);
+            console.log('  累积收益率数据:', cumulativeReturnData);
             
             return {
                 labels: labels,
                 datasets: [
                     {
-                        label: '账户余额 (USDT)',
-                        data: balanceData,
+                        label: '每日收益额 (USDT)',
+                        data: dailyProfitData,
                         yAxisID: 'y',
-                        borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                        borderWidth: 3,
-                        fill: true,
-                        tension: 0.4
+                        backgroundColor: dailyProfitData.map(value => 
+                            value >= 0 ? 'rgba(40, 167, 69, 0.4)' : 'rgba(220, 53, 69, 0.4)'
+                        ),
+                        borderColor: dailyProfitData.map(value => 
+                            value >= 0 ? '#28a745' : '#dc3545'
+                        ),
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                        type: 'bar' // 改为柱状图
                     },
                     {
-                        label: '变化率 (%)',
-                        data: changeRateData,
+                        label: '累积收益率 (%)',
+                        data: cumulativeReturnData,
                         yAxisID: 'y1',
-                        borderColor: '#ff6b6b',
-                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
-                        borderWidth: 2,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.3)',
+                        borderWidth: 3,
                         fill: false,
-                        tension: 0.4
+                        tension: 0.4,
+                        type: 'line' // 累积收益率保持折线图
                     }
                 ]
             };
@@ -2190,7 +2219,7 @@
             // 创建新图表
             const ctx = canvasElement.getContext('2d');
             canvasElement.chart = new Chart(ctx, {
-                type: 'line',
+                type: 'bar', // 改为柱状图
                 data: chartData,
                 options: chartOptions
             });
@@ -2198,7 +2227,7 @@
             console.log('图表重新绘制完成');
         }
         
-        // 根据时间范围获取图表选项（双Y轴）
+        // 根据时间范围获取图表选项（双Y轴：柱状图 + 折线图）
         function getChartOptionsWithTimeRange(timeRange, dataLength) {
             const days = parseInt(timeRange);
             
@@ -2216,7 +2245,7 @@
                 plugins: {
                     title: {
                         display: true,
-                        text: `近${days}天资金变化趋势图`,
+                        text: `近${days}天每日收益趋势图`,
                         font: {
                             size: window.innerWidth <= 768 ? 14 : 18,
                             weight: 'bold'
@@ -2249,9 +2278,9 @@
                         callbacks: {
                             label: function(context) {
                                 if (context.datasetIndex === 0) {
-                                    return `余额: $${formatNumber(context.parsed.y)}`;
+                                    return `每日收益额: $${formatNumber(context.parsed.y)}`;
                                 } else {
-                                    return `变化率: ${formatNumber(context.parsed.y)}%`;
+                                    return `累积收益率: ${formatNumber(context.parsed.y)}%`;
                                 }
                             }
                         }
@@ -2292,7 +2321,7 @@
                         position: 'left',
                         title: {
                             display: true,
-                            text: '账户余额 (USDT)',
+                            text: '每日收益额 (USDT)',
                             font: {
                                 size: window.innerWidth <= 768 ? 12 : 14,
                                 weight: 'bold'
@@ -2316,7 +2345,7 @@
                         position: 'right',
                         title: {
                             display: true,
-                            text: '变化率 (%)',
+                            text: '累积收益率 (%)',
                             font: {
                                 size: window.innerWidth <= 768 ? 12 : 14,
                                 weight: 'bold'
