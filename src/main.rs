@@ -214,14 +214,14 @@ async fn main() -> Result<()> {
     } else {
         info!("✅ 钉钉机器人配置检查成功");
         
-        // 发送启动通知到群
-        info!("📢 发送启动通知到钉钉群...");
-        let at_all = env::var("DINGTALK_AT_ALL").unwrap_or_else(|_| "false".to_string()).parse().unwrap_or(false);
-        if let Err(e) = dingtalk_bot.send_startup_notification(at_all, &config.web_base_url).await {
-            warn!("⚠️  发送启动通知失败: {}", e);
-        } else {
-            info!("✅ 启动通知发送成功");
-        }
+        // // 发送启动通知到群
+        // info!("📢 发送启动通知到钉钉群...");
+        // let at_all = env::var("DINGTALK_AT_ALL").unwrap_or_else(|_| "false".to_string()).parse().unwrap_or(false);
+        // if let Err(e) = dingtalk_bot.send_startup_notification(at_all, &config.web_base_url).await {
+        //     warn!("⚠️  发送启动通知失败: {}", e);
+        // } else {
+        //     info!("✅ 启动通知发送成功");
+        // }
     }
     
     // 检查是否有命令行参数

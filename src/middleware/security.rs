@@ -43,7 +43,7 @@ pub async fn security_headers_middleware(
         header::HeaderName::from_static("content-security-policy"),
         HeaderValue::from_static(
             "default-src 'self'; \
-             script-src 'self' 'unsafe-inline'; \
+             script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com; \
              style-src 'self' 'unsafe-inline'; \
              img-src 'self' data:; \
              font-src 'self'; \

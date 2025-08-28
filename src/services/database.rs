@@ -562,35 +562,46 @@ impl DatabaseService {
     }
 
     pub async fn get_latest_balance_history(&self, days: u32) -> Result<Vec<crate::models::ranking::BalanceHistory>> {
-        let rows = sqlx::query(
-            r#"
-            SELECT id, user_id, user_name, exchange_type, total_usdt_value, 
-                   balance_details, recorded_date, recorded_at, created_at
-            FROM balance_history 
-            WHERE recorded_date >= date('now', '-' || ? || ' days')
-            ORDER BY recorded_date DESC, total_usdt_value DESC
-            "#
-        )
-        .bind(days as i64)
-        .fetch_all(&self.pool)
-        .await?;
+        // 获取所有已批准用户的注册信息
+        let users = self.get_all_approved_users_with_exchanges().await?;
+        
+        let mut all_history = Vec::new();
+        
+        for (_user_id, user_name, exchange_type) in users {
+            // 获取每个用户的所有余额历史记录
+            let rows = sqlx::query(
+                r#"
+                SELECT id, user_id, user_name, exchange_type, total_usdt_value, 
+                       balance_details, recorded_date, recorded_at, created_at
+                FROM balance_history 
+                WHERE user_name = ? AND exchange_type = ?
+                ORDER BY recorded_date ASC
+                "#
+            )
+            .bind(&user_name)
+            .bind(&exchange_type)
+            .fetch_all(&self.pool)
+            .await?;
 
-        let mut history = Vec::new();
-        for row in rows {
-            history.push(crate::models::ranking::BalanceHistory {
-                id: Uuid::parse_str(&row.get::<String, _>("id"))?,
-                user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
-                user_name: row.get("user_name"),
-                exchange_type: row.get("exchange_type"),
-                total_usdt_value: Decimal::from_str(&row.get::<String, _>("total_usdt_value"))?,
-                balance_details: row.get("balance_details"),
-                recorded_date: row.get("recorded_date"),
-                recorded_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("recorded_at"))?.with_timezone(&Utc),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
-            });
+            for row in rows {
+                all_history.push(crate::models::ranking::BalanceHistory {
+                    id: Uuid::parse_str(&row.get::<String, _>("id"))?,
+                    user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
+                    user_name: row.get("user_name"),
+                    exchange_type: row.get("exchange_type"),
+                    total_usdt_value: Decimal::from_str(&row.get::<String, _>("total_usdt_value"))?,
+                    balance_details: row.get("balance_details"),
+                    recorded_date: row.get("recorded_date"),
+                    recorded_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("recorded_at"))?.with_timezone(&Utc),
+                    created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
+                });
+            }
         }
-
-        Ok(history)
+        
+        // 按日期排序，最新的在前
+        all_history.sort_by(|a, b| b.recorded_date.cmp(&a.recorded_date));
+        
+        Ok(all_history)
     }
 
     pub async fn get_all_approved_users_with_exchanges(&self) -> Result<Vec<(Uuid, String, String)>> {
@@ -621,7 +632,7 @@ impl DatabaseService {
         &self,
         user_name: &str,
         exchange_type: &str,
-    ) -> Result<Registration> {
+    ) -> Result<Option<Registration>> {
         let row = sqlx::query(
             r#"
             SELECT id, user_name, exchange_type, api_key, secret_key, passphrase,
@@ -633,10 +644,13 @@ impl DatabaseService {
         )
         .bind(user_name)
         .bind(exchange_type)
-        .fetch_one(&self.pool)
+        .fetch_optional(&self.pool)
         .await?;
 
-        self.parse_registration_from_row(&row)
+        match row {
+            Some(row) => Ok(Some(self.parse_registration_from_row(&row)?)),
+            None => Ok(None),
+        }
     }
 
     // 排名表管理方法

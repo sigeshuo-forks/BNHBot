@@ -106,7 +106,7 @@ pub async fn get_registration_stats(
 
 /// 审核报名
 pub async fn review_registration(
-    State((registration_service, _auth_service, _exchange_service, dingtalk_bot, database)): State<(RegistrationService, AuthService, ExchangeService, crate::services::DingTalkBot, crate::services::DatabaseService)>,
+    State((registration_service, _auth_service, exchange_service, dingtalk_bot, database)): State<(RegistrationService, AuthService, ExchangeService, crate::services::DingTalkBot, crate::services::DatabaseService)>,
     Path(registration_id): Path<String>,
     Json(request): Json<ReviewRequest>,
 ) -> Result<Json<ReviewResponse>, StatusCode> {
@@ -154,13 +154,23 @@ pub async fn review_registration(
     // 执行审核
     match registration_service.review_registration(reg_id, status, request.admin_notes).await {
         Ok(_) => {
-            // 如果审核通过，发送钉钉通知
+            // 如果审核通过，发送钉钉通知并收集初始余额
             if status == RegistrationStatus::Approved {
                 if let Some(reg) = registration_info {
+                    // 发送钉钉通知
                     tokio::spawn(crate::handlers::approval_notification::send_approval_notification(
                         dingtalk_bot,
-                        database,
-                        reg.user_name,
+                        database.clone(),
+                        reg.user_name.clone(),
+                        reg.exchange.to_string(),
+                    ));
+                    
+                    // 收集初始余额数据
+                    tokio::spawn(collect_initial_balance(
+                        database.clone(),
+                        exchange_service.clone(),
+                        reg.id,
+                        reg.user_name.clone(),
                         reg.exchange.to_string(),
                     ));
                 }
@@ -423,4 +433,81 @@ pub async fn test_registration_balance(
             }))
         }
     }
+}
+
+/// 收集用户初始余额数据
+async fn collect_initial_balance(
+    database: crate::services::DatabaseService,
+    exchange_service: crate::services::ExchangeService,
+    user_id: Uuid,
+    user_name: String,
+    exchange_type: String,
+) {
+    log::info!("开始收集用户 {} 的初始余额数据", user_name);
+    
+    // 获取用户的API配置
+    let registration = match database.get_registration_by_user_and_exchange(&user_name, &exchange_type).await {
+        Ok(Some(reg)) => reg,
+        Ok(None) => {
+            log::error!("未找到用户 {} 的注册信息", user_name);
+            return;
+        }
+        Err(e) => {
+            log::error!("获取用户注册信息失败: {}", e);
+            return;
+        }
+    };
+    
+    // 创建用户交易所配置
+    let user_exchange = crate::models::UserExchange {
+        id: user_id,
+        user_id,
+        exchange_type: match registration.exchange {
+            crate::models::registration::RegistrationExchangeType::Binance => crate::models::ExchangeType::Binance,
+            crate::models::registration::RegistrationExchangeType::OKX => crate::models::ExchangeType::Okx,
+            crate::models::registration::RegistrationExchangeType::WEEX => crate::models::ExchangeType::Weex,
+        },
+        api_key: registration.api_key,
+        secret_key: registration.secret_key,
+        passphrase: registration.passphrase,
+        created_at: registration.created_at,
+        updated_at: registration.updated_at,
+        is_active: true,
+    };
+    
+    // 获取账户总览
+    let summary = match exchange_service.get_account_summary(&user_exchange).await {
+        Ok(summary) => summary,
+        Err(e) => {
+            log::error!("获取用户 {} 账户总览失败: {}", user_name, e);
+            return;
+        }
+    };
+    
+    // 将余额详情序列化为JSON
+    let balance_details = match serde_json::to_string(&summary.balances) {
+        Ok(details) => details,
+        Err(e) => {
+            log::error!("序列化余额详情失败: {}", e);
+            return;
+        }
+    };
+    
+    // 使用用户注册日期作为初始余额记录日期
+    let initial_date = registration.created_at.format("%Y-%m-%d").to_string();
+    
+    // 保存到数据库
+    if let Err(e) = database.save_balance_history(
+        user_id,
+        &user_name,
+        &exchange_type,
+        summary.total_usdt_value,
+        &balance_details,
+        &initial_date,
+    ).await {
+        log::error!("保存用户 {} 初始余额历史失败: {}", user_name, e);
+        return;
+    }
+    
+    log::info!("✅ 成功收集用户 {} 的初始余额数据: {} USDT", user_name, summary.total_usdt_value);
 }

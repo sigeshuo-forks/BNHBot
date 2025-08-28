@@ -79,7 +79,8 @@ impl RankingService {
         recorded_date: &str,
     ) -> Result<()> {
         // 从数据库获取用户的API配置
-        let registration = self.database.get_registration_by_user_and_exchange(user_name, exchange_type).await?;
+        let registration = self.database.get_registration_by_user_and_exchange(user_name, exchange_type).await?
+            .ok_or_else(|| anyhow::anyhow!("未找到用户 {} 的注册信息", user_name))?;
         
         // 直接使用Registration中已经解析好的交易所类型，避免重复解析
         let user_exchange = UserExchange {
@@ -196,8 +197,8 @@ impl RankingService {
                 &user_history[0].user_name, 
                 &user_history[0].exchange_type
             ).await {
-                Ok(registration) => registration.identity.to_string(),
-                Err(_) => "Regular".to_string(), // 默认为普通用户
+                Ok(Some(registration)) => registration.identity.to_string(),
+                Ok(None) | Err(_) => "Regular".to_string(), // 默认为普通用户
             };
 
             // 计算参与天数（有余额记录的天数）
