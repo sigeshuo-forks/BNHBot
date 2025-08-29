@@ -1,13 +1,13 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
 
 /// 报名状态
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum RegistrationStatus {
-    Pending,    // 待审核
-    Approved,   // 已通过
-    Rejected,   // 已拒绝
+    Pending,  // 待审核
+    Approved, // 已通过
+    Rejected, // 已拒绝
 }
 
 impl Default for RegistrationStatus {
@@ -26,13 +26,11 @@ impl std::fmt::Display for RegistrationStatus {
     }
 }
 
-
-
 /// 用户身份类型
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum UserIdentity {
-    Student,    // 学员
-    Regular,    // 普通用户
+    Student, // 学员
+    Regular, // 普通用户
 }
 
 impl Default for UserIdentity {
@@ -53,9 +51,9 @@ impl std::fmt::Display for UserIdentity {
 /// 交易所类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RegistrationExchangeType {
-    Binance,    // 币安
-    OKX,        // 欧易
-    WEEX,       // WEEX
+    Binance, // 币安
+    OKX,     // 欧易
+    WEEX,    // WEEX
 }
 
 impl std::fmt::Display for RegistrationExchangeType {
@@ -67,8 +65,6 @@ impl std::fmt::Display for RegistrationExchangeType {
         }
     }
 }
-
-
 
 /// 报名请求
 #[derive(Debug, Deserialize)]

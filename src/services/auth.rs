@@ -8,10 +8,10 @@ use std::env;
 /// JWT Claims结构
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,    // 主题 (通常是用户ID)
-    pub exp: usize,     // 过期时间
-    pub iat: usize,     // 签发时间
-    pub role: String,   // 角色
+    pub sub: String,  // 主题 (通常是用户ID)
+    pub exp: usize,   // 过期时间
+    pub iat: usize,   // 签发时间
+    pub role: String, // 角色
 }
 
 /// 登录请求
@@ -41,10 +41,9 @@ impl AuthService {
     pub fn new() -> Result<Self> {
         let jwt_secret = env::var("JWT_SECRET")
             .unwrap_or_else(|_| "default_jwt_secret_change_in_production".to_string());
-        
-        let admin_password = env::var("ADMIN_PASSWORD")
-            .unwrap_or_else(|_| "admin123".to_string());
-        
+
+        let admin_password = env::var("ADMIN_PASSWORD").unwrap_or_else(|_| "admin123".to_string());
+
         let session_timeout_hours = env::var("SESSION_TIMEOUT_HOURS")
             .unwrap_or_else(|_| "24".to_string())
             .parse()
@@ -52,10 +51,10 @@ impl AuthService {
 
         // 对管理员密码进行哈希
         let admin_password_hash = Self::hash_password(&admin_password);
-        
+
         log::info!("🔐 认证服务初始化完成");
         log::info!("🕐 会话超时时间: {} 小时", session_timeout_hours);
-        
+
         Ok(Self {
             jwt_secret,
             admin_password_hash,
@@ -67,7 +66,7 @@ impl AuthService {
     pub async fn login(&self, request: LoginRequest) -> Result<LoginResponse> {
         // 验证密码
         let password_hash = Self::hash_password(&request.password);
-        
+
         if password_hash != self.admin_password_hash {
             log::warn!("🚨 管理员登录失败: 密码错误");
             return Ok(LoginResponse {
@@ -81,7 +80,7 @@ impl AuthService {
         // 生成JWT token
         let now = Utc::now();
         let expires_at = now + Duration::hours(self.session_timeout_hours);
-        
+
         let claims = Claims {
             sub: "admin".to_string(),
             exp: expires_at.timestamp() as usize,
@@ -95,7 +94,10 @@ impl AuthService {
             &EncodingKey::from_secret(self.jwt_secret.as_ref()),
         )?;
 
-        log::info!("✅ 管理员登录成功，token过期时间: {}", expires_at.format("%Y-%m-%d %H:%M:%S"));
+        log::info!(
+            "✅ 管理员登录成功，token过期时间: {}",
+            expires_at.format("%Y-%m-%d %H:%M:%S")
+        );
 
         Ok(LoginResponse {
             success: true,
@@ -108,9 +110,9 @@ impl AuthService {
     /// 验证JWT token
     pub fn verify_token(&self, token: &str) -> Result<Claims> {
         log::debug!("🔍 开始验证token，长度: {}", token.len());
-        
+
         let validation = Validation::new(Algorithm::HS256);
-        
+
         let token_data = match decode::<Claims>(
             token,
             &DecodingKey::from_secret(self.jwt_secret.as_ref()),
@@ -119,7 +121,7 @@ impl AuthService {
             Ok(data) => {
                 log::debug!("🔍 Token解码成功");
                 data
-            },
+            }
             Err(e) => {
                 log::debug!("🔍 Token解码失败: {}", e);
                 anyhow::bail!("Token格式无效: {}", e);
@@ -128,15 +130,23 @@ impl AuthService {
 
         // 检查是否过期
         let now = Utc::now().timestamp() as usize;
-        log::debug!("🔍 当前时间: {}, Token过期时间: {}", now, token_data.claims.exp);
-        
+        log::debug!(
+            "🔍 当前时间: {}, Token过期时间: {}",
+            now,
+            token_data.claims.exp
+        );
+
         if token_data.claims.exp < now {
             let expired_seconds = now - token_data.claims.exp;
             log::debug!("🔍 Token已过期 {} 秒", expired_seconds);
             anyhow::bail!("Token已过期");
         }
 
-        log::debug!("🔍 Token验证成功，用户: {}, 角色: {}", token_data.claims.sub, token_data.claims.role);
+        log::debug!(
+            "🔍 Token验证成功，用户: {}, 角色: {}",
+            token_data.claims.sub,
+            token_data.claims.role
+        );
         Ok(token_data.claims)
     }
 
@@ -164,12 +174,12 @@ impl AuthService {
     /// 生成安全的随机JWT密钥
     pub fn generate_jwt_secret() -> String {
         use std::time::{SystemTime, UNIX_EPOCH};
-        
+
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        
+
         let mut hasher = Sha256::new();
         hasher.update(timestamp.to_string().as_bytes());
         hasher.update(b"bnhbot_jwt_secret_generator");
@@ -239,10 +249,10 @@ mod tests {
         let password = "test_password";
         let hash1 = AuthService::hash_password(password);
         let hash2 = AuthService::hash_password(password);
-        
+
         // 相同密码应该产生相同哈希
         assert_eq!(hash1, hash2);
-        
+
         // 不同密码应该产生不同哈希
         let different_hash = AuthService::hash_password("different_password");
         assert_ne!(hash1, different_hash);
@@ -252,7 +262,7 @@ mod tests {
     fn test_password_strength() {
         let (score, _) = AuthService::check_password_strength("weak");
         assert!(score <= 2);
-        
+
         let (score, _) = AuthService::check_password_strength("StrongP@ssw0rd!");
         assert!(score >= 4);
     }
@@ -261,7 +271,7 @@ mod tests {
     fn test_jwt_secret_generation() {
         let secret1 = AuthService::generate_jwt_secret();
         let secret2 = AuthService::generate_jwt_secret();
-        
+
         // 每次生成的密钥应该不同
         assert_ne!(secret1, secret2);
         assert!(secret1.len() > 32); // 确保足够长

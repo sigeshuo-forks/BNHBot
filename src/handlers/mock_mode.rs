@@ -1,11 +1,7 @@
-use axum::{
-    extract::State,
-    response::Json,
-    http::StatusCode,
-};
-use serde::{Serialize, Deserialize};
-use std::sync::{Arc, Mutex};
+use axum::{extract::State, http::StatusCode, response::Json};
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MockModeRequest {
@@ -25,39 +21,59 @@ lazy_static! {
 
 /// 获取Mock模式状态（管理员接口）
 pub async fn get_mock_mode(
-    State(_): State<(crate::services::RegistrationService, crate::services::AuthService, crate::services::ExchangeService)>,
+    State(_): State<(
+        crate::services::RegistrationService,
+        crate::services::AuthService,
+        crate::services::ExchangeService,
+    )>,
 ) -> Result<Json<MockModeResponse>, StatusCode> {
     let enabled = *MOCK_MODE_ENABLED.lock().unwrap();
-    
+
     Ok(Json(MockModeResponse {
         enabled,
-        message: if enabled { "演示模式已开启".to_string() } else { "演示模式已关闭".to_string() },
+        message: if enabled {
+            "演示模式已开启".to_string()
+        } else {
+            "演示模式已关闭".to_string()
+        },
     }))
 }
 
 /// 获取Mock模式状态（公开接口，供排名页面使用）
 pub async fn get_mock_mode_public() -> Result<Json<MockModeResponse>, StatusCode> {
     let enabled = *MOCK_MODE_ENABLED.lock().unwrap();
-    
+
     Ok(Json(MockModeResponse {
         enabled,
-        message: if enabled { "演示模式已开启".to_string() } else { "演示模式已关闭".to_string() },
+        message: if enabled {
+            "演示模式已开启".to_string()
+        } else {
+            "演示模式已关闭".to_string()
+        },
     }))
 }
 
 /// 设置Mock模式状态
 pub async fn set_mock_mode(
-    State(_): State<(crate::services::RegistrationService, crate::services::AuthService, crate::services::ExchangeService)>,
+    State(_): State<(
+        crate::services::RegistrationService,
+        crate::services::AuthService,
+        crate::services::ExchangeService,
+    )>,
     Json(request): Json<MockModeRequest>,
 ) -> Result<Json<MockModeResponse>, StatusCode> {
     {
         let mut enabled = MOCK_MODE_ENABLED.lock().unwrap();
         *enabled = request.enabled;
     }
-    
+
     Ok(Json(MockModeResponse {
         enabled: request.enabled,
-        message: if request.enabled { "演示模式已开启".to_string() } else { "演示模式已关闭".to_string() },
+        message: if request.enabled {
+            "演示模式已开启".to_string()
+        } else {
+            "演示模式已关闭".to_string()
+        },
     }))
 }
 

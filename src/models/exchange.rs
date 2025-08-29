@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 // 币安现货API响应结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,7 +28,7 @@ pub struct BinanceSpotBalance {
 pub struct BinanceFuturesAccountInfo {
     // 只保留我们需要的字段
     pub assets: Vec<BinanceFuturesAsset>,
-    
+
     // 使用flatten来忽略所有其他字段，避免解析错误
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_json::Value>,
@@ -39,11 +39,11 @@ pub struct BinanceFuturesAsset {
     pub asset: String,
     pub walletBalance: String,
     pub availableBalance: String,
-    
+
     // 可选字段，如果不存在则为默认值
     #[serde(default)]
     pub positionInitialMargin: Option<String>,
-    
+
     // 使用flatten来忽略所有其他字段
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_json::Value>,
@@ -60,11 +60,11 @@ pub struct OkxAccountBalance {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OkxBalanceData {
     pub details: Vec<OkxBalanceDetail>,
-    
+
     // 总权益（USDT计价）
     #[serde(default)]
     pub totalEq: Option<String>,
-    
+
     // 使用flatten来捕获所有其他字段，避免解析错误
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_json::Value>,
@@ -77,7 +77,7 @@ pub struct OkxBalanceDetail {
     pub eq: String,
     pub availBal: String,
     pub frozenBal: String,
-    
+
     // 使用flatten来捕获所有其他字段，避免解析错误
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_json::Value>,

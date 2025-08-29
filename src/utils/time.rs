@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc, Local, Timelike};
+use chrono::{DateTime, Local, Timelike, Utc};
 
 pub fn format_local_time(datetime: DateTime<Utc>) -> String {
     let local_time = datetime.with_timezone(&Local);
@@ -14,7 +14,7 @@ pub fn is_market_open() -> bool {
     // 简单的市场开放时间判断（UTC时间）
     let now = Utc::now();
     let hour = now.hour();
-    
+
     // 假设市场在UTC 0:00-16:00开放（对应北京时间8:00-24:00）
     hour < 16
 }

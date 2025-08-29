@@ -1,27 +1,30 @@
 use anyhow::Result;
+use axum::{
+    http::StatusCode,
+    response::Html,
+    routing::{delete, get, post},
+    Json, Router,
+};
 use clap::Parser;
 use dotenv::dotenv;
-use log::{info, error, warn};
+use log::{error, info, warn};
 use std::env;
-use std::net::SocketAddr;
 use std::fs;
+use std::net::SocketAddr;
 use std::path::Path;
-use axum::{
-    routing::{get, post, delete},
-    http::StatusCode,
-    Json, Router,
-    response::Html,
-};
 
 use tower_http::cors::CorsLayer;
 
+use bnhbot::middleware::{admin_auth_middleware, security_headers_middleware};
 use bnhbot::*;
-use bnhbot::middleware::{security_headers_middleware, admin_auth_middleware};
 
 use handlers::command::{Cli, CommandHandler};
-use handlers::dingtalk_webhook::{DingTalkWebhookHandler, DingTalkMessage, DingTalkResponse};
-use services::{DatabaseService, ExchangeService, DingTalkBot, Scheduler, RegistrationService, AuthService, RankingService};
+use handlers::dingtalk_webhook::{DingTalkMessage, DingTalkResponse, DingTalkWebhookHandler};
 use models::registration::RegistrationResponse;
+use services::{
+    AuthService, DatabaseService, DingTalkBot, ExchangeService, RankingService,
+    RegistrationService, Scheduler,
+};
 use utils::dingtalk_check::DingTalkChecker;
 use utils::webhook_test::WebhookTester;
 
@@ -42,18 +45,31 @@ struct AppConfig {
 
 impl AppConfig {
     fn from_env() -> Result<Self> {
-        let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/bnhbot.db".to_string());
-        let dingtalk_webhook = env::var("DINGTALK_WEBHOOK").expect("DINGTALK_WEBHOOK 环境变量未设置");
+        let database_url =
+            env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/bnhbot.db".to_string());
+        let dingtalk_webhook =
+            env::var("DINGTALK_WEBHOOK").expect("DINGTALK_WEBHOOK 环境变量未设置");
         let dingtalk_secret = env::var("DINGTALK_SECRET").ok();
-        let dingtalk_at_all = env::var("DINGTALK_AT_ALL").unwrap_or_else(|_| "false".to_string()).parse().unwrap_or(false);
-        
+        let dingtalk_at_all = env::var("DINGTALK_AT_ALL")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse()
+            .unwrap_or(false);
+
         let web_host = env::var("WEB_SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
-        let web_port = env::var("WEB_SERVER_PORT").unwrap_or_else(|_| "3000".to_string()).parse().unwrap_or(3000);
-        let web_base_url = env::var("WEB_SERVER_BASE_URL").unwrap_or_else(|_| format!("http://{}:{}", web_host, web_port));
+        let web_port = env::var("WEB_SERVER_PORT")
+            .unwrap_or_else(|_| "3000".to_string())
+            .parse()
+            .unwrap_or(3000);
+        let web_base_url = env::var("WEB_SERVER_BASE_URL")
+            .unwrap_or_else(|_| format!("http://{}:{}", web_host, web_port));
         let admin_password = env::var("ADMIN_PASSWORD").unwrap_or_else(|_| "admin123".to_string());
-        let jwt_secret = env::var("JWT_SECRET").unwrap_or_else(|_| "default_jwt_secret_change_in_production".to_string());
-        let session_timeout_hours = env::var("SESSION_TIMEOUT_HOURS").unwrap_or_else(|_| "24".to_string()).parse().unwrap_or(24);
-        
+        let jwt_secret = env::var("JWT_SECRET")
+            .unwrap_or_else(|_| "default_jwt_secret_change_in_production".to_string());
+        let session_timeout_hours = env::var("SESSION_TIMEOUT_HOURS")
+            .unwrap_or_else(|_| "24".to_string())
+            .parse()
+            .unwrap_or(24);
+
         Ok(Self {
             database_url,
             dingtalk_webhook,
@@ -73,7 +89,7 @@ impl AppConfig {
 fn create_default_env_if_needed() -> Result<()> {
     if !std::path::Path::new(".env").exists() {
         info!("📝 创建默认 .env 文件...");
-        
+
         let env_content = r#"# BNHBot 环境变量配置
 
 # 钉钉机器人配置
@@ -92,20 +108,18 @@ WEB_SERVER_BASE_URL=http://localhost:3000
 # 日志级别
 RUST_LOG=info
 "#;
-        
-        fs::write(".env", env_content).map_err(|e| {
-            anyhow::anyhow!("无法创建 .env 文件: {}", e)
-        })?;
-        
+
+        fs::write(".env", env_content).map_err(|e| anyhow::anyhow!("无法创建 .env 文件: {}", e))?;
+
         info!("⚠️  请编辑 .env 文件，配置钉钉机器人信息");
         info!("   1. 在钉钉群中添加自定义机器人");
         info!("   2. 获取 Webhook URL 和 Secret");
         info!("   3. 更新 .env 文件中的配置");
         info!("   4. 重新启动服务");
-        
+
         anyhow::bail!("请先配置钉钉机器人信息，然后重新启动服务");
     }
-    
+
     Ok(())
 }
 
@@ -115,11 +129,12 @@ fn check_environment_variables() -> Result<()> {
     if env::var("DINGTALK_WEBHOOK").is_err() {
         anyhow::bail!("DINGTALK_WEBHOOK 环境变量未设置，请检查 .env 文件");
     }
-    
+
     // 检查数据库URL
-    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/bnhbot.db".to_string());
+    let database_url =
+        env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/bnhbot.db".to_string());
     info!("📊 数据库连接: {}", database_url);
-    
+
     Ok(())
 }
 
@@ -127,29 +142,27 @@ fn check_environment_variables() -> Result<()> {
 async fn main() -> Result<()> {
     // 加载环境变量
     dotenv().ok();
-    
+
     // 初始化日志
     env_logger::init();
-    
+
     info!("启动 BNHBot - 钉钉机器人交易所余额播报系统");
-    
+
     // 检查并创建默认环境变量文件
     create_default_env_if_needed()?;
-    
+
     // 检查环境变量
     check_environment_variables()?;
-    
+
     // 获取配置
     let config = AppConfig::from_env()?;
     let dingtalk_webhook_clone = config.dingtalk_webhook.clone();
     let dingtalk_secret_clone = config.dingtalk_secret.clone();
-    
+
     // 确保数据目录存在
     info!("📁 创建数据目录...");
-    std::fs::create_dir_all("data").map_err(|e| {
-        anyhow::anyhow!("无法创建数据目录: {}", e)
-    })?;
-    
+    std::fs::create_dir_all("data").map_err(|e| anyhow::anyhow!("无法创建数据目录: {}", e))?;
+
     // 检查数据库文件路径
     let db_path = if config.database_url.starts_with("sqlite:") {
         let path = config.database_url.trim_start_matches("sqlite:");
@@ -161,49 +174,55 @@ async fn main() -> Result<()> {
     } else {
         config.database_url.clone()
     };
-    
+
     info!("🗄️  数据库文件路径: {}", db_path);
-    
+
     // 确保数据库文件的父目录存在
     if let Some(parent) = Path::new(&db_path).parent() {
         if !parent.exists() {
             info!("📁 创建数据库父目录: {:?}", parent);
-            fs::create_dir_all(parent).map_err(|e| {
-                anyhow::anyhow!("无法创建数据库父目录 {:?}: {}", parent, e)
-            })?;
+            fs::create_dir_all(parent)
+                .map_err(|e| anyhow::anyhow!("无法创建数据库父目录 {:?}: {}", parent, e))?;
         }
     }
-    
+
     // 如果数据库文件不存在，尝试创建一个空的数据库文件
     if !Path::new(&db_path).exists() {
         info!("📝 创建数据库文件...");
         // 创建一个空的数据库文件
-        fs::File::create(&db_path).map_err(|e| {
-            anyhow::anyhow!("无法创建数据库文件 {}: {}", db_path, e)
-        })?;
+        fs::File::create(&db_path)
+            .map_err(|e| anyhow::anyhow!("无法创建数据库文件 {}: {}", db_path, e))?;
         info!("✅ 数据库文件创建成功");
     }
-    
+
     // 初始化服务
     info!("🔧 初始化数据库服务...");
     let database = DatabaseService::new(&config.database_url).await?;
     info!("✅ 数据库服务初始化成功");
     let exchange_service = ExchangeService::new();
-    let dingtalk_bot = DingTalkBot::new(config.dingtalk_webhook.clone(), config.dingtalk_secret.clone());
+    let dingtalk_bot = DingTalkBot::new(
+        config.dingtalk_webhook.clone(),
+        config.dingtalk_secret.clone(),
+    );
     let auth_service = AuthService::new()?;
-    
+
     // 检查钉钉机器人配置
     info!("🔧 检查钉钉机器人配置...");
-            let webhook_handler = DingTalkWebhookHandler::new(database.clone(), dingtalk_bot.clone(), config.web_base_url.clone());
+    let webhook_handler = DingTalkWebhookHandler::new(
+        database.clone(),
+        dingtalk_bot.clone(),
+        config.web_base_url.clone(),
+    );
     if let Err(e) = webhook_handler.check_config().await {
         warn!("⚠️  钉钉机器人配置检查失败: {}", e);
-        
+
         // 显示详细的配置检查信息
         if let Some(secret) = &dingtalk_secret_clone {
-            let check_info = DingTalkChecker::check_signature_config(&dingtalk_webhook_clone, secret);
+            let check_info =
+                DingTalkChecker::check_signature_config(&dingtalk_webhook_clone, secret);
             info!("🔍 签名配置检查详情:\n{}", check_info);
         }
-        
+
         info!("💡 请检查钉钉机器人配置：");
         info!("   1. 确保机器人已添加到群中");
         info!("   2. 确保开启了'接收消息'权限");
@@ -212,7 +231,7 @@ async fn main() -> Result<()> {
         info!("   5. 如果设置了关键词，确保消息包含关键词");
     } else {
         info!("✅ 钉钉机器人配置检查成功");
-        
+
         // // 发送启动通知到群
         // info!("📢 发送启动通知到钉钉群...");
         // let at_all = env::var("DINGTALK_AT_ALL").unwrap_or_else(|_| "false".to_string()).parse().unwrap_or(false);
@@ -222,21 +241,21 @@ async fn main() -> Result<()> {
         //     info!("✅ 启动通知发送成功");
         // }
     }
-    
+
     // 检查是否有命令行参数
     let args: Vec<String> = std::env::args().collect();
-    
+
     if args.len() > 1 {
         // 有命令行参数，使用命令行模式
         let cli = Cli::parse();
-        
+
         // 创建命令处理器
         let command_handler = CommandHandler::new(
             database.clone(),
             exchange_service.clone(),
             dingtalk_bot.clone(),
         );
-        
+
         // 处理命令
         match command_handler.handle(cli).await {
             Ok(_) => {
@@ -250,9 +269,16 @@ async fn main() -> Result<()> {
     } else {
         // 无命令行参数，启动完整服务
         info!("启动 BNHBot 完整服务...");
-        start_full_service(database, exchange_service, dingtalk_bot, auth_service, config).await?;
+        start_full_service(
+            database,
+            exchange_service,
+            dingtalk_bot,
+            auth_service,
+            config,
+        )
+        .await?;
     }
-    
+
     Ok(())
 }
 
@@ -274,115 +300,233 @@ async fn start_web_server(
         ranking_service.clone(),
         config.web_base_url.clone(),
     );
-            let webhook_handler = DingTalkWebhookHandler::new(database.clone(), dingtalk_bot.clone(), config.web_base_url.clone());
-    
-            // 基础公开路由
-        let basic_routes = Router::new()
-            .route("/", get(serve_home_page))
-            .route("/register", get(serve_registration_form))
-            .route("/rankings", get(serve_ranking_page))
-            .route("/admin/login", get(serve_admin_login_page))
-            .route("/api/register", post(handlers::registration::handle_registration))
-            .route("/api/check-username", get(handlers::username_check::check_username_availability).with_state(database.clone()))
-            .route("/api/mock-mode", get(handlers::mock_mode::get_mock_mode_public))
+    let webhook_handler = DingTalkWebhookHandler::new(
+        database.clone(),
+        dingtalk_bot.clone(),
+        config.web_base_url.clone(),
+    );
 
-            .route("/api/dingtalk/webhook", post(move |payload| handle_dingtalk_webhook(payload, webhook_handler.clone())))
-            .route("/api/dingtalk/test", get(serve_webhook_test_page))
-            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone()));
+    // 基础公开路由
+    let basic_routes = Router::new()
+        .route("/", get(serve_home_page))
+        .route("/register", get(serve_registration_form))
+        .route("/rankings", get(serve_ranking_page))
+        .route("/admin/login", get(serve_admin_login_page))
+        .route(
+            "/api/register",
+            post(handlers::registration::handle_registration),
+        )
+        .route(
+            "/api/check-username",
+            get(handlers::username_check::check_username_availability).with_state(database.clone()),
+        )
+        .route(
+            "/api/mock-mode",
+            get(handlers::mock_mode::get_mock_mode_public),
+        )
+        .route(
+            "/api/dingtalk/webhook",
+            post(move |payload| handle_dingtalk_webhook(payload, webhook_handler.clone())),
+        )
+        .route("/api/dingtalk/test", get(serve_webhook_test_page))
+        .with_state((
+            registration_service.clone(),
+            auth_service.clone(),
+            exchange_service.clone(),
+        ));
 
-        // 测试余额API路由（需要ExchangeService）
-        let exchange_service_for_test = exchange_service.clone();
-        let test_balance_routes = Router::new()
-            .route("/api/test-balance", post(move |payload| handle_test_balance(payload, exchange_service_for_test.clone())))
-            .with_state(());
+    // 测试余额API路由（需要ExchangeService）
+    let exchange_service_for_test = exchange_service.clone();
+    let test_balance_routes = Router::new()
+        .route(
+            "/api/test-balance",
+            post(move |payload| handle_test_balance(payload, exchange_service_for_test.clone())),
+        )
+        .with_state(());
 
-        // 排名相关的公开路由
-        let ranking_routes = Router::new()
-            .route("/api/rankings", get(handlers::ranking::get_rankings))
-            .route("/api/rankings/period", get(handlers::ranking::get_period_rankings))
-            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone(), ranking_service.clone()));
+    // 排名相关的公开路由
+    let ranking_routes = Router::new()
+        .route("/api/rankings", get(handlers::ranking::get_rankings))
+        .route(
+            "/api/rankings/period",
+            get(handlers::ranking::get_period_rankings),
+        )
+        .with_state((
+            registration_service.clone(),
+            auth_service.clone(),
+            exchange_service.clone(),
+            ranking_service.clone(),
+        ));
 
-        // Mock数据路由（用于演示）
-        let mock_routes = Router::new()
-            .route("/api/mock/rankings", get(handlers::mock_ranking::get_mock_rankings))
-            .route("/api/mock/rankings/period", get(handlers::mock_ranking::get_mock_period_rankings));
+    // Mock数据路由（用于演示）
+    let mock_routes = Router::new()
+        .route(
+            "/api/mock/rankings",
+            get(handlers::mock_ranking::get_mock_rankings),
+        )
+        .route(
+            "/api/mock/rankings/period",
+            get(handlers::mock_ranking::get_mock_period_rankings),
+        );
 
-        // 需要完整状态的管理API路由（包含钉钉通知功能）
-        let full_state_admin_routes = Router::new()
-            .route("/api/admin/registrations", get(handlers::admin::get_all_registrations))
-            .route("/api/admin/stats", get(handlers::admin::get_registration_stats))
-            .route("/api/admin/registrations/:id/review", post(handlers::admin::review_registration))
-            .route("/api/admin/registrations/:id", delete(handlers::admin::delete_registration))
-            .route("/api/admin/registrations/:id/balance", get(handlers::admin::get_registration_balance))
-            .route("/api/admin/registrations/:id/test-balance", get(handlers::admin::test_registration_balance))
-            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone(), dingtalk_bot.clone(), database.clone()))
-            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+    // 需要完整状态的管理API路由（包含钉钉通知功能）
+    let full_state_admin_routes = Router::new()
+        .route(
+            "/api/admin/registrations",
+            get(handlers::admin::get_all_registrations),
+        )
+        .route(
+            "/api/admin/stats",
+            get(handlers::admin::get_registration_stats),
+        )
+        .route(
+            "/api/admin/registrations/:id/review",
+            post(handlers::admin::review_registration),
+        )
+        .route(
+            "/api/admin/registrations/:id",
+            delete(handlers::admin::delete_registration),
+        )
+        .route(
+            "/api/admin/registrations/:id/balance",
+            get(handlers::admin::get_registration_balance),
+        )
+        .route(
+            "/api/admin/registrations/:id/test-balance",
+            get(handlers::admin::test_registration_balance),
+        )
+        .with_state((
+            registration_service.clone(),
+            auth_service.clone(),
+            exchange_service.clone(),
+            dingtalk_bot.clone(),
+            database.clone(),
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            auth_service.clone(),
+            admin_auth_middleware,
+        ));
 
-        // 管理员登录路由（无需认证）
-        let admin_login_routes = Router::new()
-            .route("/api/admin/login", post(handlers::admin::admin_login))
-            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone()));
+    // 管理员登录路由（无需认证）
+    let admin_login_routes = Router::new()
+        .route("/api/admin/login", post(handlers::admin::admin_login))
+        .with_state((
+            registration_service.clone(),
+            auth_service.clone(),
+            exchange_service.clone(),
+        ));
 
-        // 基础管理API路由（需要认证但不需要钉钉和数据库）
-        let basic_admin_routes = Router::new()
-            .route("/api/admin/registrations/:id/summary", get(handlers::admin_summary::get_registration_summary))
-            .route("/api/admin/mock-mode", get(handlers::mock_mode::get_mock_mode))
-            .route("/api/admin/mock-mode", post(handlers::mock_mode::set_mock_mode))
-            .route("/api/registrations", get(list_registrations))
-            .route("/api/registrations/:id/review", post(review_registration_api))
-            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone()))
-            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+    // 基础管理API路由（需要认证但不需要钉钉和数据库）
+    let basic_admin_routes = Router::new()
+        .route(
+            "/api/admin/registrations/:id/summary",
+            get(handlers::admin_summary::get_registration_summary),
+        )
+        .route(
+            "/api/admin/mock-mode",
+            get(handlers::mock_mode::get_mock_mode),
+        )
+        .route(
+            "/api/admin/mock-mode",
+            post(handlers::mock_mode::set_mock_mode),
+        )
+        .route("/api/registrations", get(list_registrations))
+        .route(
+            "/api/registrations/:id/review",
+            post(review_registration_api),
+        )
+        .with_state((
+            registration_service.clone(),
+            auth_service.clone(),
+            exchange_service.clone(),
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            auth_service.clone(),
+            admin_auth_middleware,
+        ));
 
-        // 排名相关的管理API路由
-        let ranking_admin_routes = Router::new()
-            .with_state((registration_service.clone(), auth_service.clone(), exchange_service.clone(), ranking_service.clone()))
-            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+    // 排名相关的管理API路由
+    let ranking_admin_routes = Router::new()
+        .with_state((
+            registration_service.clone(),
+            auth_service.clone(),
+            exchange_service.clone(),
+            ranking_service.clone(),
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            auth_service.clone(),
+            admin_auth_middleware,
+        ));
 
-        // 手动发送排名的管理API路由（基于已有数据，不重新获取交易所数据）
-        let manual_ranking_admin_routes = Router::new()
-            .route("/api/admin/send-ranking", post(handlers::admin_ranking::send_ranking_to_dingtalk))
-            .with_state((ranking_service.clone(), dingtalk_bot.clone()))
-            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+    // 手动发送排名的管理API路由（基于已有数据，不重新获取交易所数据）
+    let manual_ranking_admin_routes = Router::new()
+        .route(
+            "/api/admin/send-ranking",
+            post(handlers::admin_ranking::send_ranking_to_dingtalk),
+        )
+        .with_state((ranking_service.clone(), dingtalk_bot.clone()))
+        .layer(axum::middleware::from_fn_with_state(
+            auth_service.clone(),
+            admin_auth_middleware,
+        ));
 
-        // 手动更新排名表的管理API路由
-        let update_ranking_admin_routes = Router::new()
-            .route("/api/admin/update-rankings", post(handlers::admin_ranking::update_fixed_rankings))
-            .with_state(ranking_service.clone())
-            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+    // 手动更新排名表的管理API路由
+    let update_ranking_admin_routes = Router::new()
+        .route(
+            "/api/admin/update-rankings",
+            post(handlers::admin_ranking::update_fixed_rankings),
+        )
+        .with_state(ranking_service.clone())
+        .layer(axum::middleware::from_fn_with_state(
+            auth_service.clone(),
+            admin_auth_middleware,
+        ));
 
-        // 需要钉钉机器人的管理API路由
-        let dingtalk_admin_routes = Router::new()
-            .route("/api/admin/trigger-hourly-update", post(handlers::admin_ranking::trigger_hourly_update))
-            .route("/api/admin/trigger-top5-broadcast", post(handlers::admin_ranking::trigger_top5_broadcast))
-            .route("/api/admin/check-congratulations", post(handlers::admin_ranking::check_congratulations))
-            .with_state((ranking_service.clone(), dingtalk_bot.clone()))
-            .layer(axum::middleware::from_fn_with_state(auth_service.clone(), admin_auth_middleware));
+    // 需要钉钉机器人的管理API路由
+    let dingtalk_admin_routes = Router::new()
+        .route(
+            "/api/admin/trigger-hourly-update",
+            post(handlers::admin_ranking::trigger_hourly_update),
+        )
+        .route(
+            "/api/admin/trigger-top5-broadcast",
+            post(handlers::admin_ranking::trigger_top5_broadcast),
+        )
+        .route(
+            "/api/admin/check-congratulations",
+            post(handlers::admin_ranking::check_congratulations),
+        )
+        .with_state((ranking_service.clone(), dingtalk_bot.clone()))
+        .layer(axum::middleware::from_fn_with_state(
+            auth_service.clone(),
+            admin_auth_middleware,
+        ));
 
+    // 管理页面路由（不需要服务器端认证，由前端JavaScript处理）
+    let admin_page_routes = Router::new()
+        .route("/admin", get(serve_admin_page))
+        .with_state((registration_service, auth_service, exchange_service));
 
-
-        // 管理页面路由（不需要服务器端认证，由前端JavaScript处理）
-        let admin_page_routes = Router::new()
-            .route("/admin", get(serve_admin_page))
-            .with_state((registration_service, auth_service, exchange_service));
-
-        let app = Router::new()
-            .merge(basic_routes)
-            .merge(test_balance_routes)
-            .merge(ranking_routes)
-            .merge(mock_routes)
-            .merge(admin_login_routes)
-            .merge(full_state_admin_routes)
-            .merge(basic_admin_routes)
-            .merge(ranking_admin_routes)
-            .merge(manual_ranking_admin_routes)
-            .merge(update_ranking_admin_routes)
-            .merge(dingtalk_admin_routes)
-            .merge(admin_page_routes)
-            .layer(axum::middleware::from_fn(security_headers_middleware))
-            .layer(CorsLayer::permissive());
+    let app = Router::new()
+        .merge(basic_routes)
+        .merge(test_balance_routes)
+        .merge(ranking_routes)
+        .merge(mock_routes)
+        .merge(admin_login_routes)
+        .merge(full_state_admin_routes)
+        .merge(basic_admin_routes)
+        .merge(ranking_admin_routes)
+        .merge(manual_ranking_admin_routes)
+        .merge(update_ranking_admin_routes)
+        .merge(dingtalk_admin_routes)
+        .merge(admin_page_routes)
+        .layer(axum::middleware::from_fn(security_headers_middleware))
+        .layer(CorsLayer::permissive());
 
     // 解析IP地址
-    let ip_parts: Vec<u8> = config.web_host.split('.')
+    let ip_parts: Vec<u8> = config
+        .web_host
+        .split('.')
         .map(|s| s.parse().unwrap_or(127))
         .collect();
     let ip = if ip_parts.len() == 4 {
@@ -390,14 +534,14 @@ async fn start_web_server(
     } else {
         [127, 0, 0, 1]
     };
-    
+
     let addr = SocketAddr::from((ip, config.web_port));
     info!("Web服务器启动在: {}", config.web_base_url);
     info!("报名表单: {}/register", config.web_base_url);
     info!("管理界面: {}/admin", config.web_base_url);
     info!("排名页面: {}/rankings", config.web_base_url);
     info!("Webhook测试: {}/api/dingtalk/test", config.web_base_url);
-    
+
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 
@@ -406,7 +550,8 @@ async fn start_web_server(
 
 // Web路由处理函数
 async fn serve_home_page() -> Html<&'static str> {
-    Html(r#"
+    Html(
+        r#"
     <!DOCTYPE html>
     <html lang="zh-CN">
     <head>
@@ -750,7 +895,8 @@ async fn serve_home_page() -> Html<&'static str> {
         </div>
     </body>
     </html>
-    "#)
+    "#,
+    )
 }
 
 async fn serve_registration_form() -> Html<String> {
@@ -776,8 +922,6 @@ async fn serve_admin_login_page() -> Html<String> {
     let html_content = include_str!("../templates/admin_login.html");
     Html(html_content.to_string())
 }
-
-
 
 async fn list_registrations() -> Json<Vec<String>> {
     // 这里应该返回实际的报名列表
@@ -812,7 +956,7 @@ async fn serve_webhook_test_page() -> Html<String> {
     // 这里需要从配置中获取，暂时使用默认值
     let webhook_url = "http://localhost:3000/api/dingtalk/webhook";
     let curl_commands = WebhookTester::generate_curl_commands(webhook_url);
-    
+
     let html_content = format!(
         r#"
         <!DOCTYPE html>
@@ -881,7 +1025,7 @@ async fn serve_webhook_test_page() -> Html<String> {
         "#,
         curl_commands.join("\n\n")
     );
-    
+
     Html(html_content)
 }
 
@@ -894,30 +1038,45 @@ async fn start_full_service(
     config: AppConfig,
 ) -> Result<()> {
     info!("启动 BNHBot 完整服务...");
-    
+
     // 创建报名服务
     let registration_service = RegistrationService::new(database.clone());
-    
+
     // 创建排名服务
     let ranking_service = RankingService::new(database.clone(), exchange_service.clone());
-    
+
     // 启动定时任务调度器（在后台运行）
     let scheduler_database = database.clone();
     let scheduler_exchange_service = exchange_service.clone();
     let scheduler_dingtalk_bot = dingtalk_bot.clone();
     let scheduler_ranking_service = ranking_service.clone();
     let scheduler_web_base_url = config.web_base_url.clone();
-    
+
     tokio::spawn(async move {
-        let scheduler = Scheduler::new(scheduler_database, scheduler_exchange_service, scheduler_dingtalk_bot, scheduler_ranking_service, scheduler_web_base_url);
+        let scheduler = Scheduler::new(
+            scheduler_database,
+            scheduler_exchange_service,
+            scheduler_dingtalk_bot,
+            scheduler_ranking_service,
+            scheduler_web_base_url,
+        );
         if let Err(e) = scheduler.start().await {
             error!("定时任务调度器运行失败: {}", e);
         }
     });
-    
+
     // 启动Web服务器（用于报名表单和管理界面）
-    start_web_server(database, exchange_service, dingtalk_bot, registration_service, auth_service, ranking_service, config.clone()).await?;
-    
+    start_web_server(
+        database,
+        exchange_service,
+        dingtalk_bot,
+        registration_service,
+        auth_service,
+        ranking_service,
+        config.clone(),
+    )
+    .await?;
+
     Ok(())
 }
 
@@ -929,13 +1088,17 @@ async fn handle_test_balance(
     exchange_service: ExchangeService,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // 解析请求数据
-    let _user_name = payload["user_name"].as_str()
+    let _user_name = payload["user_name"]
+        .as_str()
         .ok_or_else(|| StatusCode::BAD_REQUEST)?;
-    let exchange = payload["exchange"].as_str()
+    let exchange = payload["exchange"]
+        .as_str()
         .ok_or_else(|| StatusCode::BAD_REQUEST)?;
-    let api_key = payload["api_key"].as_str()
+    let api_key = payload["api_key"]
+        .as_str()
         .ok_or_else(|| StatusCode::BAD_REQUEST)?;
-    let secret_key = payload["secret_key"].as_str()
+    let secret_key = payload["secret_key"]
+        .as_str()
         .ok_or_else(|| StatusCode::BAD_REQUEST)?;
     let passphrase = payload["passphrase"].as_str();
 
@@ -961,7 +1124,10 @@ async fn handle_test_balance(
     };
 
     // 测试获取余额
-    match exchange_service.get_account_summary(&test_user_exchange).await {
+    match exchange_service
+        .get_account_summary(&test_user_exchange)
+        .await
+    {
         Ok(summary) => {
             let response = serde_json::json!({
                 "success": true,

@@ -1,3 +1,4 @@
+use crate::services::AuthService;
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, StatusCode},
@@ -5,7 +6,6 @@ use axum::{
     response::{Json, Response},
 };
 use serde_json::json;
-use crate::services::AuthService;
 
 /// 管理员认证中间件
 pub async fn admin_auth_middleware(
@@ -26,7 +26,7 @@ pub async fn admin_auth_middleware(
         Some(token) => {
             log::debug!("🔍 提取到token: {}...", &token[..token.len().min(20)]);
             token
-        },
+        }
         None => {
             log::warn!("🚨 未授权访问管理API: 缺少token或格式错误");
             log::debug!("🔍 原始Authorization头部: {:?}", auth_header);
@@ -54,9 +54,7 @@ pub async fn admin_auth_middleware(
 }
 
 /// API认证错误响应
-pub async fn auth_error_handler(
-    status: StatusCode,
-) -> Json<serde_json::Value> {
+pub async fn auth_error_handler(status: StatusCode) -> Json<serde_json::Value> {
     let message = match status {
         StatusCode::UNAUTHORIZED => "未授权访问，请先登录",
         StatusCode::FORBIDDEN => "权限不足，需要管理员权限",

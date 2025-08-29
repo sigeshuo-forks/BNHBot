@@ -10,7 +10,7 @@ impl DingTalkChecker {
         let timestamp = Utc::now().timestamp_millis();
         let string_to_sign = format!("{}\n{}", timestamp, secret);
         let signature = hmac_sha256_base64(&string_to_sign, secret);
-        
+
         format!(
             "🔍 钉钉机器人签名配置检查\n\n\
             📋 配置信息:\n\
@@ -26,16 +26,27 @@ impl DingTalkChecker {
             • 确保时间戳使用毫秒级精度\n\
             • 确保签名字符串格式为: timestamp\\nsecret\n\
             • 确保签名使用base64编码",
-            webhook_url, secret, timestamp, string_to_sign, signature,
-            webhook_url, timestamp, signature
+            webhook_url,
+            secret,
+            timestamp,
+            string_to_sign,
+            signature,
+            webhook_url,
+            timestamp,
+            signature
         )
     }
-    
+
     /// 验证签名是否正确
-    pub fn verify_signature(_webhook_url: &str, secret: &str, timestamp: i64, signature: &str) -> bool {
+    pub fn verify_signature(
+        _webhook_url: &str,
+        secret: &str,
+        timestamp: i64,
+        signature: &str,
+    ) -> bool {
         let string_to_sign = format!("{}\n{}", timestamp, secret);
         let expected_signature = hmac_sha256_base64(&string_to_sign, secret);
-        
+
         signature == expected_signature
     }
 }

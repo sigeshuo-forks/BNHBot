@@ -1,14 +1,14 @@
 use crate::models::registration::RegistrationStatus;
-use crate::services::{RegistrationService, AuthService, ExchangeService};
+use crate::services::{AuthService, ExchangeService, RegistrationService};
 use axum::{
     extract::{Path, State},
-    response::Json,
     http::StatusCode,
+    response::Json,
 };
-use serde::Serialize;
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use serde::Serialize;
+use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
 pub struct BalanceInfo {
@@ -29,15 +29,20 @@ pub struct AccountSummaryResponse {
 
 /// 获取注册用户的账户总览（包含USDT总估值）
 pub async fn get_registration_summary(
-    State((registration_service, _auth_service, exchange_service)): State<(RegistrationService, AuthService, ExchangeService)>,
+    State((registration_service, _auth_service, exchange_service)): State<(
+        RegistrationService,
+        AuthService,
+        ExchangeService,
+    )>,
     Path(registration_id): Path<String>,
 ) -> Result<Json<AccountSummaryResponse>, StatusCode> {
     // 解析UUID
-    let id = Uuid::parse_str(&registration_id)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let id = Uuid::parse_str(&registration_id).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     // 获取注册信息
-    let registration = registration_service.get_registration_by_id(id).await
+    let registration = registration_service
+        .get_registration_by_id(id)
+        .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
@@ -57,9 +62,15 @@ pub async fn get_registration_summary(
         id: Uuid::new_v4(), // 临时ID
         user_id: registration.id,
         exchange_type: match registration.exchange {
-            crate::models::registration::RegistrationExchangeType::Binance => crate::models::ExchangeType::Binance,
-            crate::models::registration::RegistrationExchangeType::OKX => crate::models::ExchangeType::Okx,
-            crate::models::registration::RegistrationExchangeType::WEEX => crate::models::ExchangeType::Weex,
+            crate::models::registration::RegistrationExchangeType::Binance => {
+                crate::models::ExchangeType::Binance
+            }
+            crate::models::registration::RegistrationExchangeType::OKX => {
+                crate::models::ExchangeType::Okx
+            }
+            crate::models::registration::RegistrationExchangeType::WEEX => {
+                crate::models::ExchangeType::Weex
+            }
         },
         api_key: registration.api_key,
         secret_key: registration.secret_key,
@@ -72,7 +83,8 @@ pub async fn get_registration_summary(
     // 查询账户总览
     match exchange_service.get_account_summary(&user_exchange).await {
         Ok(account_summary) => {
-            let balances: Vec<BalanceInfo> = account_summary.balances
+            let balances: Vec<BalanceInfo> = account_summary
+                .balances
                 .into_iter()
                 .map(|eb| BalanceInfo {
                     asset: eb.asset,

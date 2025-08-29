@@ -1,15 +1,15 @@
-use crate::models::registration::{Registration, RegistrationStatus, RegistrationStats};
-use crate::services::{RegistrationService, AuthService, ExchangeService};
+use crate::models::registration::{Registration, RegistrationStats, RegistrationStatus};
 use crate::services::auth::{LoginRequest, LoginResponse};
+use crate::services::{AuthService, ExchangeService, RegistrationService};
 use axum::{
     extract::{Path, State},
-    response::Json,
     http::StatusCode,
+    response::Json,
 };
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// 审核请求
 #[derive(Debug, Deserialize)]
@@ -61,7 +61,11 @@ pub struct AccountSummaryResponse {
 
 /// 管理员登录
 pub async fn admin_login(
-    State((_registration_service, auth_service, _exchange_service)): State<(RegistrationService, AuthService, ExchangeService)>,
+    State((_registration_service, auth_service, _exchange_service)): State<(
+        RegistrationService,
+        AuthService,
+        ExchangeService,
+    )>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, StatusCode> {
     match auth_service.login(request).await {
@@ -106,7 +110,15 @@ pub async fn get_registration_stats(
 
 /// 审核报名
 pub async fn review_registration(
-    State((registration_service, _auth_service, exchange_service, dingtalk_bot, database)): State<(RegistrationService, AuthService, ExchangeService, crate::services::DingTalkBot, crate::services::DatabaseService)>,
+    State((registration_service, _auth_service, exchange_service, dingtalk_bot, database)): State<
+        (
+            RegistrationService,
+            AuthService,
+            ExchangeService,
+            crate::services::DingTalkBot,
+            crate::services::DatabaseService,
+        ),
+    >,
     Path(registration_id): Path<String>,
     Json(request): Json<ReviewRequest>,
 ) -> Result<Json<ReviewResponse>, StatusCode> {
@@ -152,19 +164,24 @@ pub async fn review_registration(
     };
 
     // 执行审核
-    match registration_service.review_registration(reg_id, status, request.admin_notes).await {
+    match registration_service
+        .review_registration(reg_id, status, request.admin_notes)
+        .await
+    {
         Ok(_) => {
             // 如果审核通过，发送钉钉通知并收集初始余额
             if status == RegistrationStatus::Approved {
                 if let Some(reg) = registration_info {
                     // 发送钉钉通知
-                    tokio::spawn(crate::handlers::approval_notification::send_approval_notification(
-                        dingtalk_bot,
-                        database.clone(),
-                        reg.user_name.clone(),
-                        reg.exchange.to_string(),
-                    ));
-                    
+                    tokio::spawn(
+                        crate::handlers::approval_notification::send_approval_notification(
+                            dingtalk_bot,
+                            database.clone(),
+                            reg.user_name.clone(),
+                            reg.exchange.to_string(),
+                        ),
+                    );
+
                     // 收集初始余额数据
                     tokio::spawn(collect_initial_balance(
                         database.clone(),
@@ -175,12 +192,12 @@ pub async fn review_registration(
                     ));
                 }
             }
-            
+
             Ok(Json(ReviewResponse {
                 success: true,
                 message: "审核成功".to_string(),
             }))
-        },
+        }
         Err(e) => {
             log::error!("审核失败: {}", e);
             Ok(Json(ReviewResponse {
@@ -225,7 +242,15 @@ pub async fn delete_registration(
 
 /// 获取账户余额
 pub async fn get_registration_balance(
-    State((registration_service, _auth_service, exchange_service, _dingtalk_bot, _database)): State<(RegistrationService, AuthService, ExchangeService, crate::services::DingTalkBot, crate::services::DatabaseService)>,
+    State((registration_service, _auth_service, exchange_service, _dingtalk_bot, _database)): State<
+        (
+            RegistrationService,
+            AuthService,
+            ExchangeService,
+            crate::services::DingTalkBot,
+            crate::services::DatabaseService,
+        ),
+    >,
     Path(registration_id): Path<String>,
 ) -> Result<Json<BalanceResponse>, StatusCode> {
     // 解析报名ID
@@ -278,9 +303,15 @@ pub async fn get_registration_balance(
         id: Uuid::new_v4(),
         user_id: Uuid::new_v4(), // 临时ID
         exchange_type: match registration.exchange {
-            crate::models::registration::RegistrationExchangeType::Binance => crate::models::ExchangeType::Binance,
-            crate::models::registration::RegistrationExchangeType::OKX => crate::models::ExchangeType::Okx,
-            crate::models::registration::RegistrationExchangeType::WEEX => crate::models::ExchangeType::Weex,
+            crate::models::registration::RegistrationExchangeType::Binance => {
+                crate::models::ExchangeType::Binance
+            }
+            crate::models::registration::RegistrationExchangeType::OKX => {
+                crate::models::ExchangeType::Okx
+            }
+            crate::models::registration::RegistrationExchangeType::WEEX => {
+                crate::models::ExchangeType::Weex
+            }
         },
         api_key: registration.api_key,
         secret_key: registration.secret_key,
@@ -324,7 +355,15 @@ pub async fn get_registration_balance(
 
 /// 测试账户余额（审核前）
 pub async fn test_registration_balance(
-    State((registration_service, _auth_service, exchange_service, _dingtalk_bot, _database)): State<(RegistrationService, AuthService, ExchangeService, crate::services::DingTalkBot, crate::services::DatabaseService)>,
+    State((registration_service, _auth_service, exchange_service, _dingtalk_bot, _database)): State<
+        (
+            RegistrationService,
+            AuthService,
+            ExchangeService,
+            crate::services::DingTalkBot,
+            crate::services::DatabaseService,
+        ),
+    >,
     Path(registration_id): Path<String>,
 ) -> Result<Json<BalanceResponse>, StatusCode> {
     // 解析报名ID
@@ -377,9 +416,15 @@ pub async fn test_registration_balance(
         id: Uuid::new_v4(),
         user_id: Uuid::new_v4(), // 临时ID
         exchange_type: match registration.exchange {
-            crate::models::registration::RegistrationExchangeType::Binance => crate::models::ExchangeType::Binance,
-            crate::models::registration::RegistrationExchangeType::OKX => crate::models::ExchangeType::Okx,
-            crate::models::registration::RegistrationExchangeType::WEEX => crate::models::ExchangeType::Weex,
+            crate::models::registration::RegistrationExchangeType::Binance => {
+                crate::models::ExchangeType::Binance
+            }
+            crate::models::registration::RegistrationExchangeType::OKX => {
+                crate::models::ExchangeType::Okx
+            }
+            crate::models::registration::RegistrationExchangeType::WEEX => {
+                crate::models::ExchangeType::Weex
+            }
         },
         api_key: registration.api_key,
         secret_key: registration.secret_key,
@@ -404,8 +449,9 @@ pub async fn test_registration_balance(
 
             Ok(Json(BalanceResponse {
                 success: true,
-                message: format!("✅ API测试成功！{}的{}交易所API密钥有效，可以正常获取余额数据", 
-                    registration.user_name, 
+                message: format!(
+                    "✅ API测试成功！{}的{}交易所API密钥有效，可以正常获取余额数据",
+                    registration.user_name,
                     match registration.exchange {
                         crate::models::registration::RegistrationExchangeType::Binance => "币安",
                         crate::models::registration::RegistrationExchangeType::OKX => "欧易",
@@ -420,9 +466,13 @@ pub async fn test_registration_balance(
             log::error!("API测试失败: {}", e);
             Ok(Json(BalanceResponse {
                 success: false,
-                message: format!("❌ API测试失败: {}。请检查API密钥、Secret Key{}是否正确", 
+                message: format!(
+                    "❌ API测试失败: {}。请检查API密钥、Secret Key{}是否正确",
                     e,
-                    if matches!(registration.exchange, crate::models::registration::RegistrationExchangeType::OKX) {
+                    if matches!(
+                        registration.exchange,
+                        crate::models::registration::RegistrationExchangeType::OKX
+                    ) {
                         "和Passphrase"
                     } else {
                         ""
@@ -444,9 +494,12 @@ async fn collect_initial_balance(
     exchange_type: String,
 ) {
     log::info!("开始收集用户 {} 的初始余额数据", user_name);
-    
+
     // 获取用户的API配置
-    let registration = match database.get_registration_by_user_and_exchange(&user_name, &exchange_type).await {
+    let registration = match database
+        .get_registration_by_user_and_exchange(&user_name, &exchange_type)
+        .await
+    {
         Ok(Some(reg)) => reg,
         Ok(None) => {
             log::error!("未找到用户 {} 的注册信息", user_name);
@@ -457,15 +510,21 @@ async fn collect_initial_balance(
             return;
         }
     };
-    
+
     // 创建用户交易所配置
     let user_exchange = crate::models::UserExchange {
         id: user_id,
         user_id,
         exchange_type: match registration.exchange {
-            crate::models::registration::RegistrationExchangeType::Binance => crate::models::ExchangeType::Binance,
-            crate::models::registration::RegistrationExchangeType::OKX => crate::models::ExchangeType::Okx,
-            crate::models::registration::RegistrationExchangeType::WEEX => crate::models::ExchangeType::Weex,
+            crate::models::registration::RegistrationExchangeType::Binance => {
+                crate::models::ExchangeType::Binance
+            }
+            crate::models::registration::RegistrationExchangeType::OKX => {
+                crate::models::ExchangeType::Okx
+            }
+            crate::models::registration::RegistrationExchangeType::WEEX => {
+                crate::models::ExchangeType::Weex
+            }
         },
         api_key: registration.api_key,
         secret_key: registration.secret_key,
@@ -474,7 +533,7 @@ async fn collect_initial_balance(
         updated_at: registration.updated_at,
         is_active: true,
     };
-    
+
     // 获取账户总览
     let summary = match exchange_service.get_account_summary(&user_exchange).await {
         Ok(summary) => summary,
@@ -483,7 +542,7 @@ async fn collect_initial_balance(
             return;
         }
     };
-    
+
     // 将余额详情序列化为JSON
     let balance_details = match serde_json::to_string(&summary.balances) {
         Ok(details) => details,
@@ -492,22 +551,29 @@ async fn collect_initial_balance(
             return;
         }
     };
-    
+
     // 使用用户注册日期作为初始余额记录日期
     let initial_date = registration.created_at.format("%Y-%m-%d").to_string();
-    
+
     // 保存到数据库
-    if let Err(e) = database.save_balance_history(
-        user_id,
-        &user_name,
-        &exchange_type,
-        summary.total_usdt_value,
-        &balance_details,
-        &initial_date,
-    ).await {
+    if let Err(e) = database
+        .save_balance_history(
+            user_id,
+            &user_name,
+            &exchange_type,
+            summary.total_usdt_value,
+            &balance_details,
+            &initial_date,
+        )
+        .await
+    {
         log::error!("保存用户 {} 初始余额历史失败: {}", user_name, e);
         return;
     }
-    
-    log::info!("✅ 成功收集用户 {} 的初始余额数据: {} USDT", user_name, summary.total_usdt_value);
+
+    log::info!(
+        "✅ 成功收集用户 {} 的初始余额数据: {} USDT",
+        user_name,
+        summary.total_usdt_value
+    );
 }

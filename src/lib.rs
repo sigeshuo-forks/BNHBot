@@ -1,8 +1,8 @@
+pub mod handlers;
+pub mod middleware;
 pub mod models;
 pub mod services;
-pub mod handlers;
 pub mod utils;
-pub mod middleware;
 
 #[cfg(test)]
 mod tests {
@@ -13,10 +13,13 @@ mod tests {
         use models::ExchangeType;
         use std::str::FromStr;
 
-        assert_eq!(ExchangeType::from_str("binance").unwrap(), ExchangeType::Binance);
+        assert_eq!(
+            ExchangeType::from_str("binance").unwrap(),
+            ExchangeType::Binance
+        );
         assert_eq!(ExchangeType::from_str("okx").unwrap(), ExchangeType::Okx);
         assert_eq!(ExchangeType::from_str("weex").unwrap(), ExchangeType::Weex);
-        
+
         assert!(ExchangeType::from_str("invalid").is_err());
     }
 

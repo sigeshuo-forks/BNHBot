@@ -1,9 +1,11 @@
-use crate::models::registration::{Registration, RegistrationRequest, RegistrationStatus, RegistrationExchangeType};
+use crate::models::registration::{
+    Registration, RegistrationExchangeType, RegistrationRequest, RegistrationStatus,
+};
 use crate::services::DatabaseService;
 use anyhow::Result;
-use uuid::Uuid;
 use chrono::Utc;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct RegistrationService {
@@ -16,10 +18,7 @@ impl RegistrationService {
     }
 
     /// 创建新报名
-    pub async fn create_registration(
-        &self,
-        request: RegistrationRequest,
-    ) -> Result<Registration> {
+    pub async fn create_registration(&self, request: RegistrationRequest) -> Result<Registration> {
         let id = Uuid::new_v4();
         let now = Utc::now();
 
@@ -45,7 +44,13 @@ impl RegistrationService {
         self.validate_api_info(&request)?;
 
         // 解析身份类型
-        let identity = match request.identity.as_deref().unwrap_or("regular").to_lowercase().as_str() {
+        let identity = match request
+            .identity
+            .as_deref()
+            .unwrap_or("regular")
+            .to_lowercase()
+            .as_str()
+        {
             "student" => crate::models::registration::UserIdentity::Student,
             "regular" | _ => crate::models::registration::UserIdentity::Regular,
         };
@@ -68,13 +73,15 @@ impl RegistrationService {
 
         // 保存到数据库
         self.database.create_registration(&registration).await?;
-        
+
         Ok(registration)
     }
 
     /// 获取待审核的报名
     pub async fn get_pending_registrations(&self) -> Result<Vec<Registration>> {
-        self.database.get_registrations_by_status(RegistrationStatus::Pending).await
+        self.database
+            .get_registrations_by_status(RegistrationStatus::Pending)
+            .await
     }
 
     /// 审核报名
@@ -85,7 +92,10 @@ impl RegistrationService {
         admin_notes: Option<String>,
     ) -> Result<Registration> {
         // 从数据库获取现有记录
-        let mut registration = self.database.get_registration_by_id(registration_id).await?
+        let mut registration = self
+            .database
+            .get_registration_by_id(registration_id)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("报名记录不存在"))?;
 
         // 更新状态和备注
@@ -101,14 +111,25 @@ impl RegistrationService {
     }
 
     /// 获取报名统计
-    pub async fn get_registration_stats(&self) -> Result<crate::models::registration::RegistrationStats> {
+    pub async fn get_registration_stats(
+        &self,
+    ) -> Result<crate::models::registration::RegistrationStats> {
         let all_registrations = self.database.get_all_registrations().await?;
-        
+
         let total = all_registrations.len();
-        let pending = all_registrations.iter().filter(|r| matches!(r.status, RegistrationStatus::Pending)).count();
-        let approved = all_registrations.iter().filter(|r| matches!(r.status, RegistrationStatus::Approved)).count();
-        let rejected = all_registrations.iter().filter(|r| matches!(r.status, RegistrationStatus::Rejected)).count();
-        
+        let pending = all_registrations
+            .iter()
+            .filter(|r| matches!(r.status, RegistrationStatus::Pending))
+            .count();
+        let approved = all_registrations
+            .iter()
+            .filter(|r| matches!(r.status, RegistrationStatus::Approved))
+            .count();
+        let rejected = all_registrations
+            .iter()
+            .filter(|r| matches!(r.status, RegistrationStatus::Rejected))
+            .count();
+
         let mut by_exchange = HashMap::new();
         for registration in &all_registrations {
             let exchange_key = match registration.exchange {
@@ -118,7 +139,7 @@ impl RegistrationService {
             };
             *by_exchange.entry(exchange_key.to_string()).or_insert(0) += 1;
         }
-        
+
         Ok(crate::models::registration::RegistrationStats {
             total,
             pending,
@@ -136,9 +157,14 @@ impl RegistrationService {
         if request.secret_key.trim().is_empty() {
             anyhow::bail!("Secret Key不能为空");
         }
-        
+
         // 如果是OKX，必须提供Passphrase
-        if request.exchange.to_lowercase() == "okx" && request.passphrase.as_ref().map_or(true, |p| p.trim().is_empty()) {
+        if request.exchange.to_lowercase() == "okx"
+            && request
+                .passphrase
+                .as_ref()
+                .map_or(true, |p| p.trim().is_empty())
+        {
             anyhow::bail!("欧易(OKX)必须提供Passphrase");
         }
 

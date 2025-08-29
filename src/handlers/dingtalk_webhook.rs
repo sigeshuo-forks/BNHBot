@@ -1,7 +1,7 @@
 use crate::services::{DatabaseService, DingTalkBot};
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use log::info;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct DingTalkMessage {
@@ -57,18 +57,18 @@ impl DingTalkWebhookHandler {
     /// 检查钉钉机器人配置
     pub async fn check_config(&self) -> Result<()> {
         info!("🔧 检查钉钉机器人配置...");
-        
+
         // 发送测试消息
         // let test_message = "🤖 钉钉机器人连接测试\n✅ 配置正常，可以接收消息";
         // self.dingtalk_bot.send_text_message(test_message).await?;
-        
+
         info!("✅ 钉钉机器人配置检查完成");
         Ok(())
     }
 
     pub async fn handle_message(&self, message: DingTalkMessage) -> Result<DingTalkResponse> {
         info!("收到钉钉消息: {:?}", message);
-        
+
         // 检查消息类型
         if message.msgtype != "text" {
             info!("非文本消息，忽略");
@@ -86,7 +86,7 @@ impl DingTalkWebhookHandler {
                     errcode: 0,
                     errmsg: "success".to_string(),
                 });
-            },
+            }
         };
 
         info!("收到文本消息: '{}'", text_content);
@@ -94,11 +94,11 @@ impl DingTalkWebhookHandler {
         // 检查是否包含"报名"关键词
         if text_content.contains("报名") {
             info!("检测到报名请求: {}", text_content);
-            
+
             // 获取@的用户信息
             let at_users = self.extract_at_users(&message).await?;
             info!("@的用户数量: {}", at_users.len());
-            
+
             if at_users.is_empty() {
                 // 如果没有@用户，发送通用回复
                 let registration_url = format!("{}/register", self.web_base_url);
@@ -106,7 +106,7 @@ impl DingTalkWebhookHandler {
                     "🎯 您好！\n\n📝 请点击以下链接进行报名：\n🔗 {}\n\n💡 报名说明：\n• 支持多种报名类型\n• 填写完成后自动提交审核\n• 管理员会及时处理您的申请\n\n💡 操作步骤：\n1. 点击上方报名链接\n2. 填写报名信息\n3. 提交等待审核\n\n❓ 如有问题，请联系管理员",
                     registration_url
                 );
-                
+
                 self.dingtalk_bot.send_text_message(&reply_message).await?;
                 info!("发送通用报名回复");
             } else {
@@ -115,7 +115,7 @@ impl DingTalkWebhookHandler {
                     self.send_registration_link(&user).await?;
                 }
             }
-            
+
             return Ok(DingTalkResponse {
                 errcode: 0,
                 errmsg: "success".to_string(),
@@ -132,7 +132,7 @@ impl DingTalkWebhookHandler {
 
     async fn extract_at_users(&self, message: &DingTalkMessage) -> Result<Vec<DingTalkUser>> {
         let mut users = Vec::new();
-        
+
         if let Some(at) = &message.at {
             // 处理@的手机号
             for mobile in &at.at_mobiles {
@@ -140,7 +140,7 @@ impl DingTalkWebhookHandler {
                     users.push(user);
                 }
             }
-            
+
             // 处理@的用户ID
             for userid in &at.at_user_ids {
                 if let Ok(user) = self.get_user_by_id(userid).await {
@@ -148,7 +148,7 @@ impl DingTalkWebhookHandler {
                 }
             }
         }
-        
+
         Ok(users)
     }
 
@@ -174,7 +174,7 @@ impl DingTalkWebhookHandler {
 
     async fn send_registration_link(&self, user: &DingTalkUser) -> Result<()> {
         let web_url = "http://localhost:3000/register";
-        
+
         let message = format!(
             "🎯 @{} 您好！\n\n\
             📝 请点击以下链接进行报名：\n\
@@ -189,15 +189,13 @@ impl DingTalkWebhookHandler {
 
         // 发送钉钉消息，@用户
         if let Some(mobile) = &user.mobile {
-            self.dingtalk_bot.send_text_message_with_at(
-                &message,
-                Some(vec![mobile.clone()]),
-                None
-            ).await?;
+            self.dingtalk_bot
+                .send_text_message_with_at(&message, Some(vec![mobile.clone()]), None)
+                .await?;
         } else {
             self.dingtalk_bot.send_text_message(&message).await?;
         }
-        
+
         info!("已向用户 {} 发送报名链接", user.name);
         Ok(())
     }

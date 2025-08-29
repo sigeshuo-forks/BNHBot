@@ -1,11 +1,11 @@
-use crate::models::{User, UserExchange, Balance, ExchangeType};
 use crate::models::registration::{Registration, RegistrationExchangeType, RegistrationStatus};
+use crate::models::{Balance, ExchangeType, User, UserExchange};
 use anyhow::Result;
-use sqlx::{SqlitePool, Row};
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use sqlx::{Row, SqlitePool};
 use std::str::FromStr;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct DatabaseService {
@@ -15,10 +15,10 @@ pub struct DatabaseService {
 impl DatabaseService {
     pub async fn new(database_url: &str) -> Result<Self> {
         let pool = SqlitePool::connect(database_url).await?;
-        
+
         // 创建表结构
         Self::create_tables(&pool).await?;
-        
+
         Ok(Self { pool })
     }
 
@@ -34,8 +34,10 @@ impl DatabaseService {
                 updated_at TEXT NOT NULL,
                 is_active BOOLEAN NOT NULL DEFAULT 1
             )
-            "#
-        ).execute(pool).await?;
+            "#,
+        )
+        .execute(pool)
+        .await?;
 
         // 用户交易所配置表
         sqlx::query(
@@ -52,8 +54,10 @@ impl DatabaseService {
                 is_active BOOLEAN NOT NULL DEFAULT 1,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
-            "#
-        ).execute(pool).await?;
+            "#,
+        )
+        .execute(pool)
+        .await?;
 
         // 余额记录表
         sqlx::query(
@@ -71,8 +75,10 @@ impl DatabaseService {
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
-            "#
-        ).execute(pool).await?;
+            "#,
+        )
+        .execute(pool)
+        .await?;
 
         // 报名记录表
         sqlx::query(
@@ -91,15 +97,19 @@ impl DatabaseService {
                 updated_at TEXT NOT NULL,
                 reviewed_at TEXT
             )
-            "#
-        ).execute(pool).await?;
+            "#,
+        )
+        .execute(pool)
+        .await?;
 
         // 检查并添加identity列（用于向后兼容）
         let _ = sqlx::query(
             r#"
             ALTER TABLE registrations ADD COLUMN identity TEXT NOT NULL DEFAULT 'Regular'
-            "#
-        ).execute(pool).await; // 忽略错误，因为列可能已经存在
+            "#,
+        )
+        .execute(pool)
+        .await; // 忽略错误，因为列可能已经存在
 
         // 余额历史记录表（用于排名系统）
         sqlx::query(
@@ -116,8 +126,10 @@ impl DatabaseService {
                 created_at TEXT NOT NULL,
                 UNIQUE(user_id, recorded_date) -- 每个用户每天只能有一条记录
             )
-            "#
-        ).execute(pool).await?;
+            "#,
+        )
+        .execute(pool)
+        .await?;
 
         // 固定排名表（避免实时计算的随机性）
         sqlx::query(
@@ -144,8 +156,10 @@ impl DatabaseService {
                 updated_at TEXT NOT NULL,
                 UNIQUE(user_id, period, recorded_date) -- 每个用户每个周期每天只能有一条排名记录
             )
-            "#
-        ).execute(pool).await?;
+            "#,
+        )
+        .execute(pool)
+        .await?;
 
         Ok(())
     }
@@ -178,20 +192,20 @@ impl DatabaseService {
     }
 
     pub async fn get_user_by_dingtalk_id(&self, dingtalk_user_id: &str) -> Result<Option<User>> {
-        let row = sqlx::query(
-            "SELECT * FROM users WHERE dingtalk_user_id = ? AND is_active = 1"
-        )
-        .bind(dingtalk_user_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row = sqlx::query("SELECT * FROM users WHERE dingtalk_user_id = ? AND is_active = 1")
+            .bind(dingtalk_user_id)
+            .fetch_optional(&self.pool)
+            .await?;
 
         if let Some(row) = row {
             Ok(Some(User {
                 id: Uuid::parse_str(&row.get::<String, _>("id"))?,
                 dingtalk_user_id: row.get("dingtalk_user_id"),
                 dingtalk_name: row.get("dingtalk_name"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&Utc),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
+                    .with_timezone(&Utc),
+                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
+                    .with_timezone(&Utc),
                 is_active: row.get("is_active"),
             }))
         } else {
@@ -200,7 +214,14 @@ impl DatabaseService {
     }
 
     // 交易所配置管理
-    pub async fn add_user_exchange(&self, user_id: Uuid, exchange_type: ExchangeType, api_key: &str, secret_key: &str, passphrase: Option<&str>) -> Result<UserExchange> {
+    pub async fn add_user_exchange(
+        &self,
+        user_id: Uuid,
+        exchange_type: ExchangeType,
+        api_key: &str,
+        secret_key: &str,
+        passphrase: Option<&str>,
+    ) -> Result<UserExchange> {
         let id = Uuid::new_v4();
         let now = Utc::now();
 
@@ -233,19 +254,17 @@ impl DatabaseService {
     }
 
     pub async fn get_user_exchanges(&self, user_id: Uuid) -> Result<Vec<UserExchange>> {
-        let rows = sqlx::query(
-            "SELECT * FROM user_exchanges WHERE user_id = ? AND is_active = 1"
-        )
-        .bind(user_id.to_string())
-        .fetch_all(&self.pool)
-        .await?;
+        let rows = sqlx::query("SELECT * FROM user_exchanges WHERE user_id = ? AND is_active = 1")
+            .bind(user_id.to_string())
+            .fetch_all(&self.pool)
+            .await?;
 
         let mut exchanges = Vec::new();
         for row in rows {
             let exchange_type_str = row.get::<String, _>("exchange_type");
             let exchange_type = ExchangeType::from_str(&exchange_type_str)
                 .map_err(|e| anyhow::anyhow!("解析交易所类型失败: {}", e))?;
-                
+
             exchanges.push(UserExchange {
                 id: Uuid::parse_str(&row.get::<String, _>("id"))?,
                 user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
@@ -253,8 +272,10 @@ impl DatabaseService {
                 api_key: row.get("api_key"),
                 secret_key: row.get("secret_key"),
                 passphrase: row.get("passphrase"),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&Utc),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
+                    .with_timezone(&Utc),
+                updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
+                    .with_timezone(&Utc),
                 is_active: row.get("is_active"),
             });
         }
@@ -263,7 +284,16 @@ impl DatabaseService {
     }
 
     // 余额记录管理
-    pub async fn save_balance(&self, user_id: Uuid, exchange_type: ExchangeType, asset: &str, free: Decimal, locked: Decimal, total: Decimal, usdt_value: Option<Decimal>) -> Result<()> {
+    pub async fn save_balance(
+        &self,
+        user_id: Uuid,
+        exchange_type: ExchangeType,
+        asset: &str,
+        free: Decimal,
+        locked: Decimal,
+        total: Decimal,
+        usdt_value: Option<Decimal>,
+    ) -> Result<()> {
         let id = Uuid::new_v4();
         let now = Utc::now();
 
@@ -298,7 +328,7 @@ impl DatabaseService {
                 WHERE b2.user_id = b.user_id AND b2.exchange_type = b.exchange_type
             )
             ORDER BY b.user_id, b.exchange_type, b.asset
-            "#
+            "#,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -308,7 +338,7 @@ impl DatabaseService {
             let exchange_type_str = row.get::<String, _>("exchange_type");
             let exchange_type = ExchangeType::from_str(&exchange_type_str)
                 .map_err(|e| anyhow::anyhow!("解析交易所类型失败: {}", e))?;
-                
+
             balances.push(Balance {
                 id: Uuid::parse_str(&row.get::<String, _>("id"))?,
                 user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
@@ -317,10 +347,13 @@ impl DatabaseService {
                 free: Decimal::from_str_exact(&row.get::<String, _>("free"))?,
                 locked: Decimal::from_str_exact(&row.get::<String, _>("locked"))?,
                 total: Decimal::from_str_exact(&row.get::<String, _>("total"))?,
-                usdt_value: row.get::<Option<String>, _>("usdt_value")
+                usdt_value: row
+                    .get::<Option<String>, _>("usdt_value")
                     .and_then(|v| Decimal::from_str_exact(&v).ok()),
-                recorded_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("recorded_at"))?.with_timezone(&Utc),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
+                recorded_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("recorded_at"))?
+                    .with_timezone(&Utc),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
+                    .with_timezone(&Utc),
             });
         }
 
@@ -330,13 +363,12 @@ impl DatabaseService {
     // 报名记录管理
     /// 检查用户名是否已存在
     pub async fn is_username_exists(&self, user_name: &str) -> Result<bool> {
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM registrations WHERE user_name = ?"
-        )
-        .bind(user_name)
-        .fetch_one(&self.pool)
-        .await?;
-        
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM registrations WHERE user_name = ?")
+                .bind(user_name)
+                .fetch_one(&self.pool)
+                .await?;
+
         Ok(count.0 > 0)
     }
 
@@ -347,7 +379,7 @@ impl DatabaseService {
                 id, user_name, exchange_type, api_key, secret_key, passphrase,
                 status, admin_notes, identity, created_at, updated_at, reviewed_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#
+            "#,
         )
         .bind(registration.id.to_string())
         .bind(&registration.user_name)
@@ -370,7 +402,7 @@ impl DatabaseService {
     /// 从数据库行解析注册记录的辅助函数
     fn parse_registration_from_row(&self, row: &sqlx::sqlite::SqliteRow) -> Result<Registration> {
         use sqlx::Row;
-        
+
         let exchange_type_str = row.get::<String, _>("exchange_type");
         let exchange_type = match exchange_type_str.as_str() {
             "Binance" => RegistrationExchangeType::Binance,
@@ -387,7 +419,9 @@ impl DatabaseService {
             _ => return Err(anyhow::anyhow!("未知的状态: {}", status_str)),
         };
 
-        let identity_str = row.get::<Option<String>, _>("identity").unwrap_or_else(|| "Regular".to_string());
+        let identity_str = row
+            .get::<Option<String>, _>("identity")
+            .unwrap_or_else(|| "Regular".to_string());
         let identity = match identity_str.as_str() {
             "Student" => crate::models::registration::UserIdentity::Student,
             "Regular" => crate::models::registration::UserIdentity::Regular,
@@ -404,9 +438,12 @@ impl DatabaseService {
             status,
             admin_notes: row.get("admin_notes"),
             identity,
-            created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
-            updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?.with_timezone(&Utc),
-            reviewed_at: row.get::<Option<String>, _>("reviewed_at")
+            created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
+                .with_timezone(&Utc),
+            updated_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))?
+                .with_timezone(&Utc),
+            reviewed_at: row
+                .get::<Option<String>, _>("reviewed_at")
                 .map(|s: String| DateTime::parse_from_rfc3339(&s).map(|dt| dt.with_timezone(&Utc)))
                 .transpose()?,
         })
@@ -445,7 +482,7 @@ impl DatabaseService {
                 user_name = ?, exchange_type = ?, api_key = ?, secret_key = ?, passphrase = ?,
                 status = ?, admin_notes = ?, identity = ?, updated_at = ?, reviewed_at = ?
             WHERE id = ?
-            "#
+            "#,
         )
         .bind(&registration.user_name)
         .bind(registration.exchange.to_string())
@@ -473,11 +510,15 @@ impl DatabaseService {
         Ok(())
     }
 
-    pub async fn get_registrations_by_status(&self, status: RegistrationStatus) -> Result<Vec<Registration>> {
-        let rows = sqlx::query("SELECT * FROM registrations WHERE status = ? ORDER BY created_at DESC")
-            .bind(status.to_string())
-            .fetch_all(&self.pool)
-            .await?;
+    pub async fn get_registrations_by_status(
+        &self,
+        status: RegistrationStatus,
+    ) -> Result<Vec<Registration>> {
+        let rows =
+            sqlx::query("SELECT * FROM registrations WHERE status = ? ORDER BY created_at DESC")
+                .bind(status.to_string())
+                .fetch_all(&self.pool)
+                .await?;
 
         let mut registrations = Vec::new();
         for row in rows {
@@ -536,7 +577,7 @@ impl DatabaseService {
             WHERE user_id = ?
             ORDER BY recorded_date DESC
             LIMIT ?
-            "#
+            "#,
         )
         .bind(user_id.to_string())
         .bind(days as i64)
@@ -553,20 +594,25 @@ impl DatabaseService {
                 total_usdt_value: Decimal::from_str(&row.get::<String, _>("total_usdt_value"))?,
                 balance_details: row.get("balance_details"),
                 recorded_date: row.get("recorded_date"),
-                recorded_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("recorded_at"))?.with_timezone(&Utc),
-                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
+                recorded_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("recorded_at"))?
+                    .with_timezone(&Utc),
+                created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
+                    .with_timezone(&Utc),
             });
         }
 
         Ok(history)
     }
 
-    pub async fn get_latest_balance_history(&self, days: u32) -> Result<Vec<crate::models::ranking::BalanceHistory>> {
+    pub async fn get_latest_balance_history(
+        &self,
+        days: u32,
+    ) -> Result<Vec<crate::models::ranking::BalanceHistory>> {
         // 获取所有已批准用户的注册信息
         let users = self.get_all_approved_users_with_exchanges().await?;
-        
+
         let mut all_history = Vec::new();
-        
+
         for (_user_id, user_name, exchange_type) in users {
             // 获取每个用户的所有余额历史记录
             let rows = sqlx::query(
@@ -576,7 +622,7 @@ impl DatabaseService {
                 FROM balance_history 
                 WHERE user_name = ? AND exchange_type = ?
                 ORDER BY recorded_date ASC
-                "#
+                "#,
             )
             .bind(&user_name)
             .bind(&exchange_type)
@@ -592,26 +638,32 @@ impl DatabaseService {
                     total_usdt_value: Decimal::from_str(&row.get::<String, _>("total_usdt_value"))?,
                     balance_details: row.get("balance_details"),
                     recorded_date: row.get("recorded_date"),
-                    recorded_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("recorded_at"))?.with_timezone(&Utc),
-                    created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?.with_timezone(&Utc),
+                    recorded_at: DateTime::parse_from_rfc3339(
+                        &row.get::<String, _>("recorded_at"),
+                    )?
+                    .with_timezone(&Utc),
+                    created_at: DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))?
+                        .with_timezone(&Utc),
                 });
             }
         }
-        
+
         // 按日期排序，最新的在前
         all_history.sort_by(|a, b| b.recorded_date.cmp(&a.recorded_date));
-        
+
         Ok(all_history)
     }
 
-    pub async fn get_all_approved_users_with_exchanges(&self) -> Result<Vec<(Uuid, String, String)>> {
+    pub async fn get_all_approved_users_with_exchanges(
+        &self,
+    ) -> Result<Vec<(Uuid, String, String)>> {
         let rows = sqlx::query(
             r#"
             SELECT DISTINCT r.user_name, r.exchange_type, r.id as user_id
             FROM registrations r
             WHERE r.status = 'Approved'
             ORDER BY r.user_name
-            "#
+            "#,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -640,7 +692,7 @@ impl DatabaseService {
             FROM registrations 
             WHERE user_name = ? AND exchange_type = ? AND status = 'Approved'
             LIMIT 1
-            "#
+            "#,
         )
         .bind(user_name)
         .bind(exchange_type)
@@ -655,23 +707,26 @@ impl DatabaseService {
 
     // 排名表管理方法
     /// 保存排名数据到数据库
-    pub async fn save_rankings(&self, rankings: &[crate::models::ranking::RankingEntry], period: &str, recorded_date: &str) -> Result<()> {
+    pub async fn save_rankings(
+        &self,
+        rankings: &[crate::models::ranking::RankingEntry],
+        period: &str,
+        recorded_date: &str,
+    ) -> Result<()> {
         let now = Utc::now();
-        
+
         // 先删除该周期当天的旧排名数据
-        sqlx::query(
-            "DELETE FROM rankings WHERE period = ? AND recorded_date = ?"
-        )
-        .bind(period)
-        .bind(recorded_date)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("DELETE FROM rankings WHERE period = ? AND recorded_date = ?")
+            .bind(period)
+            .bind(recorded_date)
+            .execute(&self.pool)
+            .await?;
 
         // 保存新的排名数据
         for ranking in rankings {
             let id = Uuid::new_v4();
             let balance_history_json = serde_json::to_string(&ranking.balance_history)?;
-            
+
             sqlx::query(
                 r#"
                 INSERT INTO rankings (
@@ -680,7 +735,7 @@ impl DatabaseService {
                     is_doubled, user_label, user_identity, participation_days,
                     balance_history, calculated_at, recorded_date, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                "#
+                "#,
             )
             .bind(id.to_string())
             .bind(ranking.user_id.to_string())
@@ -709,7 +764,11 @@ impl DatabaseService {
     }
 
     /// 获取固定排名数据
-    pub async fn get_rankings(&self, period: &str, recorded_date: &str) -> Result<Vec<crate::models::ranking::RankingEntry>> {
+    pub async fn get_rankings(
+        &self,
+        period: &str,
+        recorded_date: &str,
+    ) -> Result<Vec<crate::models::ranking::RankingEntry>> {
         let rows = sqlx::query(
             r#"
             SELECT user_id, user_name, exchange_type, rank_position,
@@ -718,7 +777,7 @@ impl DatabaseService {
             FROM rankings 
             WHERE period = ? AND recorded_date = ?
             ORDER BY rank_position ASC
-            "#
+            "#,
         )
         .bind(period)
         .bind(recorded_date)
@@ -727,15 +786,16 @@ impl DatabaseService {
 
         let mut rankings = Vec::new();
         for row in rows {
-            let balance_history: Vec<crate::models::ranking::BalanceHistoryPoint> = 
+            let balance_history: Vec<crate::models::ranking::BalanceHistoryPoint> =
                 serde_json::from_str(&row.get::<String, _>("balance_history"))?;
-            
+
             rankings.push(crate::models::ranking::RankingEntry {
                 user_id: Uuid::parse_str(&row.get::<String, _>("user_id"))?,
                 user_name: row.get("user_name"),
                 exchange_type: row.get("exchange_type"),
                 current_balance: Decimal::from_str(&row.get::<String, _>("current_balance"))?,
-                previous_balance: row.get::<Option<String>, _>("previous_balance")
+                previous_balance: row
+                    .get::<Option<String>, _>("previous_balance")
                     .and_then(|s| Decimal::from_str(&s).ok()),
                 change_amount: Decimal::from_str(&row.get::<String, _>("change_amount"))?,
                 change_percentage: Decimal::from_str(&row.get::<String, _>("change_percentage"))?,
@@ -765,11 +825,9 @@ impl DatabaseService {
 
     /// 清理旧的排名数据（保留最近30天的数据）
     pub async fn cleanup_old_rankings(&self) -> Result<()> {
-        sqlx::query(
-            "DELETE FROM rankings WHERE recorded_date < date('now', '-30 days')"
-        )
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("DELETE FROM rankings WHERE recorded_date < date('now', '-30 days')")
+            .execute(&self.pool)
+            .await?;
 
         Ok(())
     }

@@ -1,8 +1,8 @@
-use axum::{extract::Query, response::Json};
 use crate::models::ranking::*;
+use axum::{extract::Query, response::Json};
 use rust_decimal::Decimal;
-use uuid::Uuid;
 use serde::Deserialize;
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct RankingQuery {
@@ -11,35 +11,39 @@ pub struct RankingQuery {
 }
 
 /// 获取模拟排名数据（日排名）
-pub async fn get_mock_rankings(Query(query): Query<RankingQuery>) -> Result<Json<Vec<RankingEntry>>, axum::http::StatusCode> {
+pub async fn get_mock_rankings(
+    Query(query): Query<RankingQuery>,
+) -> Result<Json<Vec<RankingEntry>>, axum::http::StatusCode> {
     let mock_rankings = create_mock_rankings();
-    
+
     let limited_rankings = if let Some(limit) = query.limit {
         mock_rankings.into_iter().take(limit).collect()
     } else {
         mock_rankings
     };
-    
+
     Ok(Json(limited_rankings))
 }
 
 /// 获取模拟排名数据（按周期）
-pub async fn get_mock_period_rankings(Query(query): Query<RankingQuery>) -> Result<Json<RankingResponse>, axum::http::StatusCode> {
+pub async fn get_mock_period_rankings(
+    Query(query): Query<RankingQuery>,
+) -> Result<Json<RankingResponse>, axum::http::StatusCode> {
     let mock_rankings = create_mock_rankings();
-    
+
     let limited_rankings = if let Some(limit) = query.limit {
         mock_rankings.into_iter().take(limit).collect()
     } else {
         mock_rankings
     };
-    
+
     let response = RankingResponse {
         daily_rankings: limited_rankings.clone(),
         weekly_rankings: limited_rankings.clone(),
         monthly_rankings: limited_rankings,
         last_updated: chrono::Utc::now(),
     };
-    
+
     Ok(Json(response))
 }
 
@@ -51,17 +55,35 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             exchange_type: "Binance".to_string(),
             current_balance: Decimal::new(125000, 2), // $1,250.00
             previous_balance: Some(Decimal::new(50000, 2)), // $500.00
-            change_amount: Decimal::new(75000, 2), // +$750.00
+            change_amount: Decimal::new(75000, 2),    // +$750.00
             change_percentage: Decimal::new(15000, 2), // +150%
-            rank: 0, // 将在排序后设置
+            rank: 0,                                  // 将在排序后设置
             is_doubled: true,
             balance_history: vec![
-                BalanceHistoryPoint { date: "2025-08-20".to_string(), balance: Decimal::new(50000, 2) },
-                BalanceHistoryPoint { date: "2025-08-21".to_string(), balance: Decimal::new(65000, 2) },
-                BalanceHistoryPoint { date: "2025-08-22".to_string(), balance: Decimal::new(85000, 2) },
-                BalanceHistoryPoint { date: "2025-08-23".to_string(), balance: Decimal::new(105000, 2) },
-                BalanceHistoryPoint { date: "2025-08-24".to_string(), balance: Decimal::new(115000, 2) },
-                BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(125000, 2) },
+                BalanceHistoryPoint {
+                    date: "2025-08-20".to_string(),
+                    balance: Decimal::new(50000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-21".to_string(),
+                    balance: Decimal::new(65000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-22".to_string(),
+                    balance: Decimal::new(85000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-23".to_string(),
+                    balance: Decimal::new(105000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-24".to_string(),
+                    balance: Decimal::new(115000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-25".to_string(),
+                    balance: Decimal::new(125000, 2),
+                },
             ],
             user_label: "🚀 翻倍达人".to_string(),
             identity: "Student".to_string(),
@@ -73,17 +95,35 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             exchange_type: "Binance".to_string(),
             current_balance: Decimal::new(32000, 2), // $320.00
             previous_balance: Some(Decimal::new(15000, 2)), // $150.00
-            change_amount: Decimal::new(17000, 2), // +$170.00
+            change_amount: Decimal::new(17000, 2),   // +$170.00
             change_percentage: Decimal::new(11333, 2), // +113.33%
-            rank: 0, // 将在排序后设置
+            rank: 0,                                 // 将在排序后设置
             is_doubled: true,
             balance_history: vec![
-                BalanceHistoryPoint { date: "2025-08-20".to_string(), balance: Decimal::new(15000, 2) },
-                BalanceHistoryPoint { date: "2025-08-21".to_string(), balance: Decimal::new(18000, 2) },
-                BalanceHistoryPoint { date: "2025-08-22".to_string(), balance: Decimal::new(22000, 2) },
-                BalanceHistoryPoint { date: "2025-08-23".to_string(), balance: Decimal::new(26000, 2) },
-                BalanceHistoryPoint { date: "2025-08-24".to_string(), balance: Decimal::new(29000, 2) },
-                BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(32000, 2) },
+                BalanceHistoryPoint {
+                    date: "2025-08-20".to_string(),
+                    balance: Decimal::new(15000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-21".to_string(),
+                    balance: Decimal::new(18000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-22".to_string(),
+                    balance: Decimal::new(22000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-23".to_string(),
+                    balance: Decimal::new(26000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-24".to_string(),
+                    balance: Decimal::new(29000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-25".to_string(),
+                    balance: Decimal::new(32000, 2),
+                },
             ],
             user_label: "🚀 翻倍达人".to_string(),
             identity: "Regular".to_string(),
@@ -95,17 +135,35 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             exchange_type: "OKX".to_string(),
             current_balance: Decimal::new(98000, 2), // $980.00
             previous_balance: Some(Decimal::new(80000, 2)), // $800.00
-            change_amount: Decimal::new(18000, 2), // +$180.00
+            change_amount: Decimal::new(18000, 2),   // +$180.00
             change_percentage: Decimal::new(2250, 2), // +22.5%
-            rank: 0, // 将在排序后设置
+            rank: 0,                                 // 将在排序后设置
             is_doubled: false,
             balance_history: vec![
-                BalanceHistoryPoint { date: "2025-08-20".to_string(), balance: Decimal::new(80000, 2) },
-                BalanceHistoryPoint { date: "2025-08-21".to_string(), balance: Decimal::new(82000, 2) },
-                BalanceHistoryPoint { date: "2025-08-22".to_string(), balance: Decimal::new(88000, 2) },
-                BalanceHistoryPoint { date: "2025-08-23".to_string(), balance: Decimal::new(92000, 2) },
-                BalanceHistoryPoint { date: "2025-08-24".to_string(), balance: Decimal::new(95000, 2) },
-                BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(98000, 2) },
+                BalanceHistoryPoint {
+                    date: "2025-08-20".to_string(),
+                    balance: Decimal::new(80000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-21".to_string(),
+                    balance: Decimal::new(82000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-22".to_string(),
+                    balance: Decimal::new(88000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-23".to_string(),
+                    balance: Decimal::new(92000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-24".to_string(),
+                    balance: Decimal::new(95000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-25".to_string(),
+                    balance: Decimal::new(98000, 2),
+                },
             ],
             user_label: "💎 稳健投资者".to_string(),
             identity: "Regular".to_string(),
@@ -117,17 +175,35 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             exchange_type: "OKX".to_string(),
             current_balance: Decimal::new(68000, 2), // $680.00
             previous_balance: Some(Decimal::new(60000, 2)), // $600.00
-            change_amount: Decimal::new(8000, 2), // +$80.00
+            change_amount: Decimal::new(8000, 2),    // +$80.00
             change_percentage: Decimal::new(1333, 2), // +13.33%
-            rank: 0, // 将在排序后设置
+            rank: 0,                                 // 将在排序后设置
             is_doubled: false,
             balance_history: vec![
-                BalanceHistoryPoint { date: "2025-08-20".to_string(), balance: Decimal::new(60000, 2) },
-                BalanceHistoryPoint { date: "2025-08-21".to_string(), balance: Decimal::new(61000, 2) },
-                BalanceHistoryPoint { date: "2025-08-22".to_string(), balance: Decimal::new(63000, 2) },
-                BalanceHistoryPoint { date: "2025-08-23".to_string(), balance: Decimal::new(65000, 2) },
-                BalanceHistoryPoint { date: "2025-08-24".to_string(), balance: Decimal::new(66500, 2) },
-                BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(68000, 2) },
+                BalanceHistoryPoint {
+                    date: "2025-08-20".to_string(),
+                    balance: Decimal::new(60000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-21".to_string(),
+                    balance: Decimal::new(61000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-22".to_string(),
+                    balance: Decimal::new(63000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-23".to_string(),
+                    balance: Decimal::new(65000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-24".to_string(),
+                    balance: Decimal::new(66500, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-25".to_string(),
+                    balance: Decimal::new(68000, 2),
+                },
             ],
             user_label: "💎 稳健投资者".to_string(),
             identity: "Student".to_string(),
@@ -139,17 +215,35 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             exchange_type: "Binance".to_string(),
             current_balance: Decimal::new(52000, 2), // $520.00
             previous_balance: Some(Decimal::new(50000, 2)), // $500.00
-            change_amount: Decimal::new(2000, 2), // +$20.00
+            change_amount: Decimal::new(2000, 2),    // +$20.00
             change_percentage: Decimal::new(400, 2), // +4%
-            rank: 0, // 将在排序后设置
+            rank: 0,                                 // 将在排序后设置
             is_doubled: false,
             balance_history: vec![
-                BalanceHistoryPoint { date: "2025-08-20".to_string(), balance: Decimal::new(50000, 2) },
-                BalanceHistoryPoint { date: "2025-08-21".to_string(), balance: Decimal::new(50500, 2) },
-                BalanceHistoryPoint { date: "2025-08-22".to_string(), balance: Decimal::new(51000, 2) },
-                BalanceHistoryPoint { date: "2025-08-23".to_string(), balance: Decimal::new(51200, 2) },
-                BalanceHistoryPoint { date: "2025-08-24".to_string(), balance: Decimal::new(51800, 2) },
-                BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(52000, 2) },
+                BalanceHistoryPoint {
+                    date: "2025-08-20".to_string(),
+                    balance: Decimal::new(50000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-21".to_string(),
+                    balance: Decimal::new(50500, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-22".to_string(),
+                    balance: Decimal::new(51000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-23".to_string(),
+                    balance: Decimal::new(51200, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-24".to_string(),
+                    balance: Decimal::new(51800, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-25".to_string(),
+                    balance: Decimal::new(52000, 2),
+                },
             ],
             user_label: "💎 稳健投资者".to_string(),
             identity: "Student".to_string(),
@@ -161,17 +255,35 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             exchange_type: "Binance".to_string(),
             current_balance: Decimal::new(75000, 2), // $750.00
             previous_balance: Some(Decimal::new(100000, 2)), // $1000.00
-            change_amount: Decimal::new(-25000, 2), // -$250.00
+            change_amount: Decimal::new(-25000, 2),  // -$250.00
             change_percentage: Decimal::new(-2500, 2), // -25%
-            rank: 0, // 将在排序后设置
+            rank: 0,                                 // 将在排序后设置
             is_doubled: false,
             balance_history: vec![
-                BalanceHistoryPoint { date: "2025-08-20".to_string(), balance: Decimal::new(100000, 2) },
-                BalanceHistoryPoint { date: "2025-08-21".to_string(), balance: Decimal::new(95000, 2) },
-                BalanceHistoryPoint { date: "2025-08-22".to_string(), balance: Decimal::new(88000, 2) },
-                BalanceHistoryPoint { date: "2025-08-23".to_string(), balance: Decimal::new(82000, 2) },
-                BalanceHistoryPoint { date: "2025-08-24".to_string(), balance: Decimal::new(78000, 2) },
-                BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(75000, 2) },
+                BalanceHistoryPoint {
+                    date: "2025-08-20".to_string(),
+                    balance: Decimal::new(100000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-21".to_string(),
+                    balance: Decimal::new(95000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-22".to_string(),
+                    balance: Decimal::new(88000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-23".to_string(),
+                    balance: Decimal::new(82000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-24".to_string(),
+                    balance: Decimal::new(78000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-25".to_string(),
+                    balance: Decimal::new(75000, 2),
+                },
             ],
             user_label: "🌱 币圈新手".to_string(),
             identity: "Student".to_string(),
@@ -183,17 +295,35 @@ fn create_mock_rankings() -> Vec<RankingEntry> {
             exchange_type: "OKX".to_string(),
             current_balance: Decimal::new(35000, 2), // $350.00
             previous_balance: Some(Decimal::new(80000, 2)), // $800.00
-            change_amount: Decimal::new(-45000, 2), // -$450.00
+            change_amount: Decimal::new(-45000, 2),  // -$450.00
             change_percentage: Decimal::new(-5625, 2), // -56.25%
-            rank: 0, // 将在排序后设置
+            rank: 0,                                 // 将在排序后设置
             is_doubled: false,
             balance_history: vec![
-                BalanceHistoryPoint { date: "2025-08-20".to_string(), balance: Decimal::new(80000, 2) },
-                BalanceHistoryPoint { date: "2025-08-21".to_string(), balance: Decimal::new(70000, 2) },
-                BalanceHistoryPoint { date: "2025-08-22".to_string(), balance: Decimal::new(55000, 2) },
-                BalanceHistoryPoint { date: "2025-08-23".to_string(), balance: Decimal::new(45000, 2) },
-                BalanceHistoryPoint { date: "2025-08-24".to_string(), balance: Decimal::new(40000, 2) },
-                BalanceHistoryPoint { date: "2025-08-25".to_string(), balance: Decimal::new(35000, 2) },
+                BalanceHistoryPoint {
+                    date: "2025-08-20".to_string(),
+                    balance: Decimal::new(80000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-21".to_string(),
+                    balance: Decimal::new(70000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-22".to_string(),
+                    balance: Decimal::new(55000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-23".to_string(),
+                    balance: Decimal::new(45000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-24".to_string(),
+                    balance: Decimal::new(40000, 2),
+                },
+                BalanceHistoryPoint {
+                    date: "2025-08-25".to_string(),
+                    balance: Decimal::new(35000, 2),
+                },
             ],
             user_label: "📉 追涨杀跌王".to_string(),
             identity: "Regular".to_string(),

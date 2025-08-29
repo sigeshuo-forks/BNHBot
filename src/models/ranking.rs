@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// 余额历史记录
@@ -28,11 +28,11 @@ pub struct RankingEntry {
     pub change_amount: Decimal,
     pub change_percentage: Decimal,
     pub rank: u32,
-    pub is_doubled: bool, // 是否实现翻倍
+    pub is_doubled: bool,                          // 是否实现翻倍
     pub balance_history: Vec<BalanceHistoryPoint>, // 用于绘制图表
-    pub user_label: String, // 用户标签：交易大神、翻倍达人等
-    pub identity: String, // 用户身份：Student或Regular
-    pub participation_days: u32, // 参与天数
+    pub user_label: String,                        // 用户标签：交易大神、翻倍达人等
+    pub identity: String,                          // 用户身份：Student或Regular
+    pub participation_days: u32,                   // 参与天数
 }
 
 /// 余额历史点（用于图表）

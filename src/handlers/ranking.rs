@@ -1,9 +1,9 @@
 use crate::models::ranking::{RankingEntry, RankingResponse};
 use crate::services::RankingService;
 use axum::{
-    extract::{State, Query},
-    response::Json,
+    extract::{Query, State},
     http::StatusCode,
+    response::Json,
 };
 use serde::Deserialize;
 
@@ -15,7 +15,12 @@ pub struct RankingQuery {
 
 /// 获取排名数据
 pub async fn get_rankings(
-    State((_registration_service, _auth_service, _exchange_service, ranking_service)): State<(crate::services::RegistrationService, crate::services::AuthService, crate::services::ExchangeService, RankingService)>,
+    State((_registration_service, _auth_service, _exchange_service, ranking_service)): State<(
+        crate::services::RegistrationService,
+        crate::services::AuthService,
+        crate::services::ExchangeService,
+        RankingService,
+    )>,
     Query(_query): Query<RankingQuery>,
 ) -> Result<Json<RankingResponse>, StatusCode> {
     match ranking_service.get_rankings().await {
@@ -29,7 +34,12 @@ pub async fn get_rankings(
 
 /// 获取特定周期的排名（从固定排名表获取）
 pub async fn get_period_rankings(
-    State((_registration_service, _auth_service, _exchange_service, ranking_service)): State<(crate::services::RegistrationService, crate::services::AuthService, crate::services::ExchangeService, RankingService)>,
+    State((_registration_service, _auth_service, _exchange_service, ranking_service)): State<(
+        crate::services::RegistrationService,
+        crate::services::AuthService,
+        crate::services::ExchangeService,
+        RankingService,
+    )>,
     Query(query): Query<RankingQuery>,
 ) -> Result<Json<Vec<RankingEntry>>, StatusCode> {
     let period_str = query.period.as_deref().unwrap_or("daily");

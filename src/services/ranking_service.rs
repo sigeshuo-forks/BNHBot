@@ -1,12 +1,12 @@
 use crate::models::ranking::*;
+use crate::models::{ExchangeType, UserExchange};
 use crate::services::{DatabaseService, ExchangeService};
-use crate::models::{UserExchange, ExchangeType};
 use anyhow::Result;
 use chrono::Utc;
+use log::{error, info, warn};
 use rust_decimal::Decimal;
-use uuid::Uuid;
 use std::collections::HashMap;
-use log::{info, error, warn};
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct RankingService {
@@ -25,19 +25,28 @@ impl RankingService {
     /// 收集所有已批准用户的余额数据
     pub async fn collect_all_balances(&self) -> Result<BalanceCollectionResponse> {
         info!("开始收集所有用户的余额数据...");
-        
-        let users = self.database.get_all_approved_users_with_exchanges().await?;
+
+        let users = self
+            .database
+            .get_all_approved_users_with_exchanges()
+            .await?;
         let mut collected_count = 0;
         let mut failed_count = 0;
         let mut errors = Vec::new();
-        
+
         let today = Utc::now().format("%Y-%m-%d").to_string();
-        
+
         for (user_id, user_name, exchange_type) in users {
-            match self.collect_user_balance(user_id, &user_name, &exchange_type, &today).await {
+            match self
+                .collect_user_balance(user_id, &user_name, &exchange_type, &today)
+                .await
+            {
                 Ok(_) => {
                     collected_count += 1;
-                    info!("✅ 成功收集用户 {} ({}) 的余额数据", user_name, exchange_type);
+                    info!(
+                        "✅ 成功收集用户 {} ({}) 的余额数据",
+                        user_name, exchange_type
+                    );
                 }
                 Err(e) => {
                     failed_count += 1;
@@ -47,9 +56,12 @@ impl RankingService {
                 }
             }
         }
-        
-        info!("余额收集完成 - 成功: {}, 失败: {}", collected_count, failed_count);
-        
+
+        info!(
+            "余额收集完成 - 成功: {}, 失败: {}",
+            collected_count, failed_count
+        );
+
         // 如果有成功收集的数据，重新计算并保存排名
         if collected_count > 0 {
             info!("开始计算并更新固定排名表...");
@@ -60,10 +72,13 @@ impl RankingService {
                 info!("✅ 固定排名表更新成功");
             }
         }
-        
+
         Ok(BalanceCollectionResponse {
             success: failed_count == 0,
-            message: format!("收集完成 - 成功: {}, 失败: {}", collected_count, failed_count),
+            message: format!(
+                "收集完成 - 成功: {}, 失败: {}",
+                collected_count, failed_count
+            ),
             collected_count,
             failed_count,
             errors,
@@ -79,15 +94,20 @@ impl RankingService {
         recorded_date: &str,
     ) -> Result<()> {
         // 从数据库获取用户的API配置
-        let registration = self.database.get_registration_by_user_and_exchange(user_name, exchange_type).await?
+        let registration = self
+            .database
+            .get_registration_by_user_and_exchange(user_name, exchange_type)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("未找到用户 {} 的注册信息", user_name))?;
-        
+
         // 直接使用Registration中已经解析好的交易所类型，避免重复解析
         let user_exchange = UserExchange {
             id: user_id,
             user_id,
             exchange_type: match registration.exchange {
-                crate::models::registration::RegistrationExchangeType::Binance => ExchangeType::Binance,
+                crate::models::registration::RegistrationExchangeType::Binance => {
+                    ExchangeType::Binance
+                }
                 crate::models::registration::RegistrationExchangeType::OKX => ExchangeType::Okx,
                 crate::models::registration::RegistrationExchangeType::WEEX => ExchangeType::Weex,
             },
@@ -100,20 +120,25 @@ impl RankingService {
         };
 
         // 获取账户总览
-        let summary = self.exchange_service.get_account_summary(&user_exchange).await?;
-        
+        let summary = self
+            .exchange_service
+            .get_account_summary(&user_exchange)
+            .await?;
+
         // 将余额详情序列化为JSON
         let balance_details = serde_json::to_string(&summary.balances)?;
-        
+
         // 保存到数据库
-        self.database.save_balance_history(
-            user_id,
-            user_name,
-            exchange_type,
-            summary.total_usdt_value,
-            &balance_details,
-            recorded_date,
-        ).await?;
+        self.database
+            .save_balance_history(
+                user_id,
+                user_name,
+                exchange_type,
+                summary.total_usdt_value,
+                &balance_details,
+                recorded_date,
+            )
+            .await?;
 
         Ok(())
     }
@@ -189,14 +214,18 @@ impl RankingService {
                 current_balance,
                 change_percentage,
                 is_doubled,
-                &user_history
+                &user_history,
             );
 
             // 获取用户身份信息
-            let identity = match self.database.get_registration_by_user_and_exchange(
-                &user_history[0].user_name, 
-                &user_history[0].exchange_type
-            ).await {
+            let identity = match self
+                .database
+                .get_registration_by_user_and_exchange(
+                    &user_history[0].user_name,
+                    &user_history[0].exchange_type,
+                )
+                .await
+            {
                 Ok(Some(registration)) => registration.identity.to_string(),
                 Ok(None) | Err(_) => "Regular".to_string(), // 默认为普通用户
             };
@@ -239,7 +268,6 @@ impl RankingService {
         is_doubled: bool,
         user_history: &[BalanceHistory],
     ) -> String {
-
         // 爆仓 (收益率 < 0 且 账户余额为0)
         if change_percentage < Decimal::from(0) && current_balance <= Decimal::from(0) {
             return "💥 重头再来".to_string();
@@ -294,15 +322,25 @@ impl RankingService {
         let monthly_rankings = self.calculate_rankings(RankingPeriod::Monthly).await?;
 
         // 保存到数据库
-        self.database.save_rankings(&daily_rankings, "daily", recorded_date).await?;
-        self.database.save_rankings(&weekly_rankings, "weekly", recorded_date).await?;
-        self.database.save_rankings(&monthly_rankings, "monthly", recorded_date).await?;
+        self.database
+            .save_rankings(&daily_rankings, "daily", recorded_date)
+            .await?;
+        self.database
+            .save_rankings(&weekly_rankings, "weekly", recorded_date)
+            .await?;
+        self.database
+            .save_rankings(&monthly_rankings, "monthly", recorded_date)
+            .await?;
 
         // 清理旧数据
         self.database.cleanup_old_rankings().await?;
 
-        info!("固定排名表更新完成 - 日榜: {} 位, 周榜: {} 位, 月榜: {} 位", 
-              daily_rankings.len(), weekly_rankings.len(), monthly_rankings.len());
+        info!(
+            "固定排名表更新完成 - 日榜: {} 位, 周榜: {} 位, 月榜: {} 位",
+            daily_rankings.len(),
+            weekly_rankings.len(),
+            monthly_rankings.len()
+        );
 
         Ok(())
     }
@@ -310,7 +348,7 @@ impl RankingService {
     /// 获取固定排名响应（从数据库读取）
     pub async fn get_rankings(&self) -> Result<RankingResponse> {
         let today = Utc::now().format("%Y-%m-%d").to_string();
-        
+
         // 尝试从数据库获取今天的排名
         let daily_rankings = self.get_fixed_rankings("daily", &today).await?;
         let weekly_rankings = self.get_fixed_rankings("weekly", &today).await?;
@@ -325,7 +363,11 @@ impl RankingService {
     }
 
     /// 获取固定排名数据，如果没有则降级到实时计算
-    pub async fn get_fixed_rankings(&self, period: &str, recorded_date: &str) -> Result<Vec<RankingEntry>> {
+    pub async fn get_fixed_rankings(
+        &self,
+        period: &str,
+        recorded_date: &str,
+    ) -> Result<Vec<RankingEntry>> {
         // 首先尝试从数据库获取固定排名
         match self.database.get_rankings(period, recorded_date).await {
             Ok(rankings) if !rankings.is_empty() => {
@@ -337,12 +379,17 @@ impl RankingService {
                 if let Ok(Some(latest_date)) = self.database.get_latest_ranking_date(period).await {
                     if let Ok(rankings) = self.database.get_rankings(period, &latest_date).await {
                         if !rankings.is_empty() {
-                            info!("使用最近的{}排名数据 - 日期: {}, {} 位用户", period, latest_date, rankings.len());
+                            info!(
+                                "使用最近的{}排名数据 - 日期: {}, {} 位用户",
+                                period,
+                                latest_date,
+                                rankings.len()
+                            );
                             return Ok(rankings);
                         }
                     }
                 }
-                
+
                 // 如果都没有，降级到实时计算
                 warn!("未找到固定{}排名，降级到实时计算", period);
                 let ranking_period = match period {
@@ -357,17 +404,24 @@ impl RankingService {
     }
 
     /// 获取钉钉排名消息（前5名）
-    pub async fn get_dingtalk_ranking_message(&self, ranking_url: &str) -> Result<DingTalkRankingMessage> {
+    pub async fn get_dingtalk_ranking_message(
+        &self,
+        ranking_url: &str,
+    ) -> Result<DingTalkRankingMessage> {
         let today = Utc::now().format("%Y-%m-%d").to_string();
         info!("🔍 获取钉钉排名消息 - 日期: {}", today);
-        
+
         let daily_rankings = self.get_fixed_rankings("daily", &today).await?;
         info!("📊 获取到日榜排名数据: {} 位用户", daily_rankings.len());
-        
+
         let top_rankings: Vec<RankingEntry> = daily_rankings.into_iter().take(5).collect();
         info!("🏆 提取前5名排名数据: {} 位用户", top_rankings.len());
-        
-        let total_participants = self.database.get_all_approved_users_with_exchanges().await?.len() as u32;
+
+        let total_participants = self
+            .database
+            .get_all_approved_users_with_exchanges()
+            .await?
+            .len() as u32;
         info!("👥 总参赛人数: {} 人", total_participants);
 
         Ok(DingTalkRankingMessage {
@@ -383,5 +437,3 @@ impl RankingService {
         self.update_fixed_rankings(&today).await
     }
 }
-
-

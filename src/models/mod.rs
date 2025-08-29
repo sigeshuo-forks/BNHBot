@@ -1,11 +1,11 @@
-pub mod user;
-pub mod exchange;
 pub mod balance;
-pub mod registration;
+pub mod exchange;
 pub mod ranking;
+pub mod registration;
+pub mod user;
 
-pub use user::*;
-pub use exchange::*;
 pub use balance::*;
-pub use registration::*;
+pub use exchange::*;
 pub use ranking::*;
+pub use registration::*;
+pub use user::*;

@@ -1,6 +1,9 @@
-use axum::{extract::{Query, State}, response::Json};
-use serde::{Deserialize, Serialize};
 use crate::services::DatabaseService;
+use axum::{
+    extract::{Query, State},
+    response::Json,
+};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct UsernameCheckQuery {
@@ -20,28 +23,28 @@ pub async fn check_username_availability(
 ) -> Json<UsernameCheckResponse> {
     // 验证用户名长度和格式
     let username = query.username.trim();
-    
+
     if username.is_empty() {
         return Json(UsernameCheckResponse {
             available: false,
             message: "用户名不能为空".to_string(),
         });
     }
-    
+
     if username.len() < 2 {
         return Json(UsernameCheckResponse {
             available: false,
             message: "用户名至少需要2个字符".to_string(),
         });
     }
-    
+
     if username.len() > 50 {
         return Json(UsernameCheckResponse {
             available: false,
             message: "用户名不能超过50个字符".to_string(),
         });
     }
-    
+
     // 检查用户名是否已存在
     match database.is_username_exists(username).await {
         Ok(exists) => {
@@ -57,11 +60,9 @@ pub async fn check_username_availability(
                 })
             }
         }
-        Err(_) => {
-            Json(UsernameCheckResponse {
-                available: false,
-                message: "检查用户名时发生错误，请稍后重试".to_string(),
-            })
-        }
+        Err(_) => Json(UsernameCheckResponse {
+            available: false,
+            message: "检查用户名时发生错误，请稍后重试".to_string(),
+        }),
     }
 }

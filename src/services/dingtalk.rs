@@ -1,10 +1,10 @@
 use crate::models::DailyReport;
 use crate::utils::timezone::TimezoneUtil;
 use anyhow::Result;
-use reqwest::Client;
-use serde::{Serialize, Deserialize};
-use std::time::Duration;
 use log::info;
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct DingTalkBot {
@@ -70,8 +70,16 @@ impl DingTalkBot {
         self.send_message(&message).await
     }
 
-    pub async fn send_balance_alert(&self, user_name: &str, exchange_type: &str, balance: &str) -> Result<()> {
-        let content = format!("🔔 余额提醒\n用户: {}\n交易所: {}\n余额: {}", user_name, exchange_type, balance);
+    pub async fn send_balance_alert(
+        &self,
+        user_name: &str,
+        exchange_type: &str,
+        balance: &str,
+    ) -> Result<()> {
+        let content = format!(
+            "🔔 余额提醒\n用户: {}\n交易所: {}\n余额: {}",
+            user_name, exchange_type, balance
+        );
         let message = DingTalkMessage {
             msgtype: "text".to_string(),
             text: DingTalkText { content },
@@ -98,12 +106,17 @@ impl DingTalkBot {
                 is_at_all: false,
             },
         };
-        
+
         self.send_message(&payload).await
     }
 
     /// 发送带@功能的文本消息
-    pub async fn send_text_message_with_at(&self, message: &str, at_mobiles: Option<Vec<String>>, at_user_ids: Option<Vec<String>>) -> Result<()> {
+    pub async fn send_text_message_with_at(
+        &self,
+        message: &str,
+        at_mobiles: Option<Vec<String>>,
+        at_user_ids: Option<Vec<String>>,
+    ) -> Result<()> {
         let at = DingTalkAt {
             at_mobiles: at_mobiles.unwrap_or_default(),
             at_user_ids: at_user_ids.unwrap_or_default(),
@@ -117,7 +130,7 @@ impl DingTalkBot {
             },
             at,
         };
-        
+
         self.send_message(&payload).await
     }
 
@@ -125,10 +138,10 @@ impl DingTalkBot {
     pub async fn send_startup_notification(&self, at_all: bool, web_base_url: &str) -> Result<()> {
         // let startup_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let startup_time = TimezoneUtil::now_china().to_string();
-        
+
         // 获取系统信息
         // let system_info = self.get_system_info();
-        
+
         let content = format!(
             "🤖 BNHBot 钉钉机器人已启动\n\n\
             🕐 启动时间: {}\n\
@@ -171,7 +184,7 @@ impl DingTalkBot {
             "📝 新报名通知\n用户: {}\n类型: {}\n标题: {}\n\n请点击链接进行审核：{}",
             _user_name, registration_type, title, admin_webhook
         );
-        
+
         let message = DingTalkMessage {
             msgtype: "text".to_string(),
             text: DingTalkText { content },
@@ -197,7 +210,7 @@ impl DingTalkBot {
             "📋 报名状态更新\n用户: {}\n标题: {}\n状态: {}\n",
             _user_name, title, status
         );
-        
+
         if let Some(notes) = notes {
             content.push_str(&format!("备注: {}", notes));
         }
@@ -224,17 +237,21 @@ impl DingTalkBot {
             content.push_str(&format!("👤 {}\n", summary.user_name));
             content.push_str(&format!("🏢 {}\n", summary.exchange_type));
             content.push_str(&format!("💰 ${:.2}\n", summary.total_usdt_value));
-            
+
             // 显示主要币种余额
-            let top_balances: Vec<_> = summary.balances.iter()
+            let top_balances: Vec<_> = summary
+                .balances
+                .iter()
                 .filter(|b| b.usdt_value.unwrap_or_default() > rust_decimal::Decimal::new(1, 0))
                 .take(5)
                 .collect();
-            
+
             for balance in top_balances {
                 if let Some(usdt_value) = balance.usdt_value {
-                    content.push_str(&format!("  {}: {:.4} (${:.2})\n", 
-                        balance.asset, balance.total, usdt_value));
+                    content.push_str(&format!(
+                        "  {}: {:.4} (${:.2})\n",
+                        balance.asset, balance.total, usdt_value
+                    ));
                 }
             }
             content.push_str("\n");
@@ -245,7 +262,7 @@ impl DingTalkBot {
 
     async fn send_message(&self, message: &DingTalkMessage) -> Result<()> {
         let mut url = self.webhook_url.clone();
-        
+
         // 如果有签名密钥，添加时间戳和签名
         if let Some(secret) = &self.secret {
             let timestamp = chrono::Utc::now().timestamp_millis();
@@ -254,52 +271,65 @@ impl DingTalkBot {
             // 使用base64编码的签名，而不是hex编码
             let signature = crate::utils::crypto::hmac_sha256_base64(&string_to_sign, secret);
             url.push_str(&format!("&timestamp={}&sign={}", timestamp, signature));
-            
-            info!("签名信息 - 时间戳: {}, 签名字符串: '{}', 签名结果: {}", timestamp, string_to_sign, signature);
+
+            info!(
+                "签名信息 - 时间戳: {}, 签名字符串: '{}', 签名结果: {}",
+                timestamp, string_to_sign, signature
+            );
         }
 
         info!("发送钉钉消息到: {}", url);
         info!("消息内容: {:?}", message);
-        
-        let response = self.client
-            .post(&url)
-            .json(message)
-            .send()
-            .await?;
+
+        let response = self.client.post(&url).json(message).send().await?;
 
         let status = response.status();
         let headers = response.headers().clone();
-        
+
         // 获取响应体
         let response_text = response.text().await.unwrap_or_default();
-        
-        info!("钉钉API响应 - 状态码: {}, 响应体: {}", status, response_text);
-        
+
+        info!(
+            "钉钉API响应 - 状态码: {}, 响应体: {}",
+            status, response_text
+        );
+
         if !status.is_success() {
             // 尝试解析钉钉的错误响应
-            if let Ok(error_response) = serde_json::from_str::<DingTalkErrorResponse>(&response_text) {
+            if let Ok(error_response) =
+                serde_json::from_str::<DingTalkErrorResponse>(&response_text)
+            {
                 anyhow::bail!(
                     "钉钉API调用失败 - 状态码: {}, 错误码: {}, 错误信息: {}",
-                    status, error_response.errcode, error_response.errmsg
+                    status,
+                    error_response.errcode,
+                    error_response.errmsg
                 );
             } else {
                 anyhow::bail!(
                     "钉钉API调用失败 - 状态码: {}, 响应体: {}, 响应头: {:?}",
-                    status, response_text, headers
+                    status,
+                    response_text,
+                    headers
                 );
             }
         }
-        
+
         // 即使状态码成功，也要检查钉钉的业务错误码
         if let Ok(api_response) = serde_json::from_str::<DingTalkErrorResponse>(&response_text) {
             if api_response.errcode != 0 {
                 let error_description = self.get_error_description(api_response.errcode);
                 anyhow::bail!(
                     "钉钉API业务错误 - 错误码: {}, 错误信息: {}, 错误说明: {}",
-                    api_response.errcode, api_response.errmsg, error_description
+                    api_response.errcode,
+                    api_response.errmsg,
+                    error_description
                 );
             }
-            info!("钉钉API调用成功 - 错误码: {}, 错误信息: {}", api_response.errcode, api_response.errmsg);
+            info!(
+                "钉钉API调用成功 - 错误码: {}, 错误信息: {}",
+                api_response.errcode, api_response.errmsg
+            );
         }
 
         Ok(())
@@ -310,7 +340,7 @@ impl DingTalkBot {
         let os = std::env::consts::OS;
         let arch = std::env::consts::ARCH;
         let rust_version = env!("CARGO_PKG_VERSION");
-        
+
         format!("{}-{} (Rust {})", os, arch, rust_version)
     }
 

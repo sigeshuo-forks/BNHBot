@@ -1,15 +1,15 @@
+pub mod auth;
+pub mod database;
 pub mod dingtalk;
 pub mod exchange_service;
-pub mod scheduler;
-pub mod database;
-pub mod registration;
-pub mod auth;
 pub mod ranking_service;
+pub mod registration;
+pub mod scheduler;
 
+pub use auth::*;
+pub use database::*;
 pub use dingtalk::*;
 pub use exchange_service::*;
-pub use scheduler::*;
-pub use database::*;
-pub use registration::*;
-pub use auth::*;
 pub use ranking_service::*;
+pub use registration::*;
+pub use scheduler::*;

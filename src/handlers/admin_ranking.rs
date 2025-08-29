@@ -1,7 +1,7 @@
+use crate::services::{DingTalkBot, RankingService};
 use axum::{extract::State, response::Json};
-use serde::{Serialize, Deserialize};
-use crate::services::{RankingService, DingTalkBot};
-use log::{info, error, warn};
+use log::{error, info, warn};
+use serde::{Deserialize, Serialize};
 use std::env;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,38 +25,48 @@ pub async fn send_ranking_to_dingtalk(
     State((ranking_service, dingtalk_bot)): State<(RankingService, DingTalkBot)>,
 ) -> Json<SendRankingResponse> {
     info!("管理员手动发送排名到钉钉群（基于已有数据）");
-    
+
     // 获取基础URL配置
     let base_url = env::var("WEB_SERVER_BASE_URL")
         .or_else(|_| env::var("WEB_BASE_URL"))
         .unwrap_or_else(|_| "http://localhost:3000".to_string());
     let ranking_url = format!("{}/rankings", base_url);
-    
-    match ranking_service.get_dingtalk_ranking_message(&ranking_url).await {
+
+    match ranking_service
+        .get_dingtalk_ranking_message(&ranking_url)
+        .await
+    {
         Ok(ranking_message) => {
             // 构建钉钉消息内容
             let mut message_content = String::new();
             message_content.push_str("🏆 每日交易大赛排名榜\n\n");
-            message_content.push_str(&format!("📊 参赛人数: {} 人\n", ranking_message.total_participants));
+            message_content.push_str(&format!(
+                "📊 参赛人数: {} 人\n",
+                ranking_message.total_participants
+            ));
             message_content.push_str("🥇 前5名排名:\n\n");
-            
+
             for (index, entry) in ranking_message.top_rankings.iter().enumerate() {
                 let rank_icon = match index {
                     0 => "🥇",
-                    1 => "🥈", 
+                    1 => "🥈",
                     2 => "🥉",
                     _ => "🏅",
                 };
-                
-                let change_icon = if entry.change_amount >= rust_decimal::Decimal::ZERO { "📈" } else { "📉" };
+
+                let change_icon = if entry.change_amount >= rust_decimal::Decimal::ZERO {
+                    "📈"
+                } else {
+                    "📉"
+                };
                 let doubled_badge = if entry.is_doubled { " 🚀翻倍" } else { "" };
-                
+
                 // 获取身份标识
                 let identity_badge = match entry.identity.as_str() {
                     "Student" => " 🎓",
                     _ => "",
                 };
-                
+
                 message_content.push_str(&format!(
                     "{} {}. {}{} {}{} ({})\n💰 余额: ${:.2} USDT\n{} 变化: ${:.2} ({:.2}%)\n📅 参与: {} 天\n\n",
                     rank_icon,
@@ -73,18 +83,21 @@ pub async fn send_ranking_to_dingtalk(
                     entry.participation_days
                 ));
             }
-            
+
             message_content.push_str("📈 查看详细排名和图表:\n");
             message_content.push_str(&format!("🔗 {}\n\n", ranking_message.ranking_url));
             message_content.push_str("💪 继续加油，期待明日翻仓的你！");
-            
+
             // 发送钉钉消息
             match dingtalk_bot.send_text_message(&message_content).await {
                 Ok(_) => {
                     info!("手动发送排名成功");
                     Json(SendRankingResponse {
                         success: true,
-                        message: format!("成功发送排名到钉钉群！共发送前{}名排名。", ranking_message.top_rankings.len()),
+                        message: format!(
+                            "成功发送排名到钉钉群！共发送前{}名排名。",
+                            ranking_message.top_rankings.len()
+                        ),
                     })
                 }
                 Err(e) => {
@@ -112,23 +125,38 @@ pub async fn update_fixed_rankings(
     State(ranking_service): State<RankingService>,
 ) -> Json<UpdateRankingResponse> {
     info!("管理员手动触发排名表更新");
-    
+
     // 触发余额收集，这会自动更新排名表
     match ranking_service.collect_all_balances().await {
         Ok(result) => {
             if result.success {
                 // 获取刚刚更新的排名数据统计
                 let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-                
+
                 // 尝试获取各周期的排名数量
-                let daily_count = ranking_service.get_fixed_rankings("daily", &today).await.map(|r| r.len()).unwrap_or(0);
-                let weekly_count = ranking_service.get_fixed_rankings("weekly", &today).await.map(|r| r.len()).unwrap_or(0);
-                let monthly_count = ranking_service.get_fixed_rankings("monthly", &today).await.map(|r| r.len()).unwrap_or(0);
-                
+                let daily_count = ranking_service
+                    .get_fixed_rankings("daily", &today)
+                    .await
+                    .map(|r| r.len())
+                    .unwrap_or(0);
+                let weekly_count = ranking_service
+                    .get_fixed_rankings("weekly", &today)
+                    .await
+                    .map(|r| r.len())
+                    .unwrap_or(0);
+                let monthly_count = ranking_service
+                    .get_fixed_rankings("monthly", &today)
+                    .await
+                    .map(|r| r.len())
+                    .unwrap_or(0);
+
                 info!("手动排名表更新成功");
                 Json(UpdateRankingResponse {
                     success: true,
-                    message: format!("排名表更新成功！余额收集: 成功 {}, 失败 {}", result.collected_count, result.failed_count),
+                    message: format!(
+                        "排名表更新成功！余额收集: 成功 {}, 失败 {}",
+                        result.collected_count, result.failed_count
+                    ),
                     daily_count,
                     weekly_count,
                     monthly_count,
@@ -162,14 +190,17 @@ pub async fn trigger_hourly_update(
     State((ranking_service, dingtalk_bot)): State<(RankingService, DingTalkBot)>,
 ) -> Json<SendRankingResponse> {
     info!("管理员手动触发每小时排名更新");
-    
+
     // 1. 收集所有用户的余额数据
     info!("🔄 开始收集所有用户余额数据...");
     match ranking_service.collect_all_balances().await {
         Ok(collection_result) => {
             info!("✅ 余额收集完成 - 结果: {}", collection_result.message);
-            info!("📊 收集统计: 成功 {} 个, 失败 {} 个", collection_result.collected_count, collection_result.failed_count);
-            
+            info!(
+                "📊 收集统计: 成功 {} 个, 失败 {} 个",
+                collection_result.collected_count, collection_result.failed_count
+            );
+
             if collection_result.collected_count == 0 {
                 return Json(SendRankingResponse {
                     success: false,
@@ -185,7 +216,7 @@ pub async fn trigger_hourly_update(
             });
         }
     }
-    
+
     // 2. 更新排名表
     info!("🔄 开始更新排名表...");
     match ranking_service.update_fixed_rankings_public().await {
@@ -200,19 +231,22 @@ pub async fn trigger_hourly_update(
             });
         }
     }
-    
+
     // 3. 检查是否有新的翻仓用户
     info!("🎉 开始检查翻仓用户...");
     match ranking_service.get_rankings().await {
         Ok(rankings) => {
             let daily_rankings = rankings.daily_rankings;
             let mut doubled_count = 0;
-            
+
             for entry in daily_rankings {
                 if entry.is_doubled {
                     doubled_count += 1;
-                    info!("🎉 发现翻仓用户: {} ({})", entry.user_name, entry.exchange_type);
-                    
+                    info!(
+                        "🎉 发现翻仓用户: {} ({})",
+                        entry.user_name, entry.exchange_type
+                    );
+
                     // 发送祝贺消息
                     if let Err(e) = send_congratulation_message(&dingtalk_bot, &entry).await {
                         error!("发送翻仓祝贺消息失败: {}", e);
@@ -221,7 +255,7 @@ pub async fn trigger_hourly_update(
                     }
                 }
             }
-            
+
             if doubled_count > 0 {
                 info!("🎉 本次更新发现 {} 个翻仓用户", doubled_count);
             }
@@ -230,7 +264,7 @@ pub async fn trigger_hourly_update(
             warn!("检查翻仓用户失败: {}", e);
         }
     }
-    
+
     info!("✅ 每小时排名更新完成");
     Json(SendRankingResponse {
         success: true,
@@ -243,38 +277,48 @@ pub async fn trigger_top5_broadcast(
     State((ranking_service, dingtalk_bot)): State<(RankingService, DingTalkBot)>,
 ) -> Json<SendRankingResponse> {
     info!("管理员手动触发Top5播报");
-    
+
     // 获取基础URL配置
     let base_url = env::var("WEB_SERVER_BASE_URL")
         .or_else(|_| env::var("WEB_BASE_URL"))
         .unwrap_or_else(|_| "http://localhost:3000".to_string());
     let ranking_url = format!("{}/rankings", base_url);
-    
-    match ranking_service.get_dingtalk_ranking_message(&ranking_url).await {
+
+    match ranking_service
+        .get_dingtalk_ranking_message(&ranking_url)
+        .await
+    {
         Ok(ranking_message) => {
             // 构建钉钉Top5播报消息内容
             let mut message_content = String::new();
             message_content.push_str("🏆 每日交易大赛排名榜 (手动播报)\n\n");
-            message_content.push_str(&format!("📊 参赛人数: {} 人\n", ranking_message.total_participants));
+            message_content.push_str(&format!(
+                "📊 参赛人数: {} 人\n",
+                ranking_message.total_participants
+            ));
             message_content.push_str("🥇 前5名排名:\n\n");
-            
+
             for (index, entry) in ranking_message.top_rankings.iter().enumerate() {
                 let rank_icon = match index {
                     0 => "🥇",
-                    1 => "🥈", 
+                    1 => "🥈",
                     2 => "🥉",
                     _ => "🏅",
                 };
-                
-                let change_icon = if entry.change_amount >= rust_decimal::Decimal::ZERO { "📈" } else { "📉" };
+
+                let change_icon = if entry.change_amount >= rust_decimal::Decimal::ZERO {
+                    "📈"
+                } else {
+                    "📉"
+                };
                 let doubled_badge = if entry.is_doubled { " 🚀翻倍" } else { "" };
-                
+
                 // 获取身份标识
                 let identity_badge = match entry.identity.as_str() {
                     "Student" => " 🎓",
                     _ => "",
                 };
-                
+
                 message_content.push_str(&format!(
                     "{} {}. {}{} {}{} ({})\n💰 余额: ${:.2} USDT\n{} 变化: ${:.2} ({:.2}%)\n📅 参与: {} 天\n\n",
                     rank_icon,
@@ -291,18 +335,21 @@ pub async fn trigger_top5_broadcast(
                     entry.participation_days
                 ));
             }
-            
+
             message_content.push_str("📈 查看详细排名和图表:\n");
             message_content.push_str(&format!("🔗 {}\n\n", ranking_message.ranking_url));
             message_content.push_str("💪 继续加油，期待明日翻仓的你！");
-            
+
             // 发送钉钉消息
             match dingtalk_bot.send_text_message(&message_content).await {
                 Ok(_) => {
                     info!("手动Top5播报成功");
                     Json(SendRankingResponse {
                         success: true,
-                        message: format!("成功发送Top5播报到钉钉群！共发送前{}名排名。", ranking_message.top_rankings.len()),
+                        message: format!(
+                            "成功发送Top5播报到钉钉群！共发送前{}名排名。",
+                            ranking_message.top_rankings.len()
+                        ),
                     })
                 }
                 Err(e) => {
@@ -329,26 +376,29 @@ pub async fn check_congratulations(
     State((ranking_service, dingtalk_bot)): State<(RankingService, DingTalkBot)>,
 ) -> Json<SendRankingResponse> {
     info!("管理员手动检查翻仓祝贺");
-    
+
     match ranking_service.get_rankings().await {
         Ok(rankings) => {
             let daily_rankings = rankings.daily_rankings;
-            
+
             if daily_rankings.is_empty() {
                 return Json(SendRankingResponse {
                     success: false,
                     message: "没有排名数据".to_string(),
                 });
             }
-            
+
             let mut doubled_count = 0;
             let mut congratulated_count = 0;
-            
+
             for entry in daily_rankings {
                 if entry.is_doubled {
                     doubled_count += 1;
-                    info!("🎉 发现翻仓用户: {} ({})", entry.user_name, entry.exchange_type);
-                    
+                    info!(
+                        "🎉 发现翻仓用户: {} ({})",
+                        entry.user_name, entry.exchange_type
+                    );
+
                     // 发送祝贺消息
                     match send_congratulation_message(&dingtalk_bot, &entry).await {
                         Ok(_) => {
@@ -361,7 +411,7 @@ pub async fn check_congratulations(
                     }
                 }
             }
-            
+
             if doubled_count == 0 {
                 Json(SendRankingResponse {
                     success: true,
@@ -370,7 +420,10 @@ pub async fn check_congratulations(
             } else {
                 Json(SendRankingResponse {
                     success: true,
-                    message: format!("发现 {} 个翻仓用户，成功发送 {} 条祝贺消息", doubled_count, congratulated_count),
+                    message: format!(
+                        "发现 {} 个翻仓用户，成功发送 {} 条祝贺消息",
+                        doubled_count, congratulated_count
+                    ),
                 })
             }
         }
@@ -391,27 +444,33 @@ async fn send_congratulation_message(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut message_content = String::new();
     message_content.push_str("🎉🎉🎉 恭喜翻仓！🎉🎉🎉\n\n");
-    message_content.push_str(&format!("🚀 用户: {} ({})\n", entry.user_name, entry.exchange_type));
-    message_content.push_str(&format!("💰 当前余额: ${:.2} USDT\n", entry.current_balance));
+    message_content.push_str(&format!(
+        "🚀 用户: {} ({})\n",
+        entry.user_name, entry.exchange_type
+    ));
+    message_content.push_str(&format!(
+        "💰 当前余额: ${:.2} USDT\n",
+        entry.current_balance
+    ));
     message_content.push_str(&format!("📈 累积收益率: {:.2}%\n", entry.change_percentage));
     message_content.push_str(&format!("📅 参与天数: {} 天\n", entry.participation_days));
-    
+
     // 获取身份标识
     let identity_badge = match entry.identity.as_str() {
         "Student" => "🎓 学员",
         _ => "👤 普通用户",
     };
     message_content.push_str(&format!("👑 身份: {}\n\n", identity_badge));
-    
+
     // 获取基础URL配置
     let base_url = env::var("WEB_SERVER_BASE_URL")
         .or_else(|_| env::var("WEB_BASE_URL"))
         .unwrap_or_else(|_| "http://localhost:3000".to_string());
-    
+
     message_content.push_str("🏆 查看详细排名:\n");
     message_content.push_str(&format!("🔗 {}/rankings\n\n", base_url));
     message_content.push_str("💪 恭喜你实现翻仓目标！继续保持，再创佳绩！");
-    
+
     dingtalk_bot.send_text_message(&message_content).await?;
     Ok(())
 }

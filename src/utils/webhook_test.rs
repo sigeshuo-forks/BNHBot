@@ -19,7 +19,7 @@ impl WebhookTester {
             }
         })
     }
-    
+
     /// 生成包含@的测试消息
     pub fn generate_at_message() -> serde_json::Value {
         json!({
@@ -34,7 +34,7 @@ impl WebhookTester {
             }
         })
     }
-    
+
     /// 生成普通测试消息
     pub fn generate_plain_message() -> serde_json::Value {
         json!({
@@ -49,7 +49,7 @@ impl WebhookTester {
             }
         })
     }
-    
+
     /// 生成测试用的curl命令
     pub fn generate_curl_commands(webhook_url: &str) -> Vec<String> {
         let test_messages = vec![
@@ -57,7 +57,7 @@ impl WebhookTester {
             ("@机器人消息", Self::generate_at_message()),
             ("普通消息", Self::generate_plain_message()),
         ];
-        
+
         test_messages
             .into_iter()
             .map(|(name, message)| {
