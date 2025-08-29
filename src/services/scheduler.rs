@@ -146,7 +146,7 @@ impl Scheduler {
 
         loop {
             // 每5分钟检查一次是否有新的翻仓用户
-            tokio::time::sleep(TokioDuration::from_secs(300)).await;
+            tokio::time::sleep(TokioDuration::from_secs(3600)).await;
 
             if let Err(e) = self.check_and_congratulate_doubled_users().await {
                 error!("检查翻仓用户失败: {}", e);
