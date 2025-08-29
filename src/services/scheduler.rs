@@ -60,15 +60,15 @@ impl Scheduler {
             }
         });
 
-        // 3. 翻仓用户即时祝贺任务
-        tokio::spawn(async move {
-            if let Err(e) = congratulation_scheduler
-                .start_congratulation_monitor()
-                .await
-            {
-                error!("翻仓祝贺监控任务失败: {}", e);
-            }
-        });
+        // // 3. 翻仓用户即时祝贺任务
+        // tokio::spawn(async move {
+        //     if let Err(e) = congratulation_scheduler
+        //         .start_congratulation_monitor()
+        //         .await
+        //     {
+        //         error!("翻仓祝贺监控任务失败: {}", e);
+        //     }
+        // });
 
         info!("✅ 所有定时任务已启动");
 
@@ -140,19 +140,19 @@ impl Scheduler {
         }
     }
 
-    // 翻仓用户即时祝贺监控任务
-    async fn start_congratulation_monitor(&self) -> Result<()> {
-        info!("🎉 启动翻仓用户即时祝贺监控任务...");
+    // // 翻仓用户即时祝贺监控任务
+    // async fn start_congratulation_monitor(&self) -> Result<()> {
+    //     info!("🎉 启动翻仓用户即时祝贺监控任务...");
 
-        loop {
-            // 每5分钟检查一次是否有新的翻仓用户
-            tokio::time::sleep(TokioDuration::from_secs(3600)).await;
+    //     loop {
+    //         // 每5分钟检查一次是否有新的翻仓用户
+    //         tokio::time::sleep(TokioDuration::from_secs(3600)).await;
 
-            if let Err(e) = self.check_and_congratulate_doubled_users().await {
-                error!("检查翻仓用户失败: {}", e);
-            }
-        }
-    }
+    //         if let Err(e) = self.check_and_congratulate_doubled_users().await {
+    //             error!("检查翻仓用户失败: {}", e);
+    //         }
+    //     }
+    // }
 
     // 每小时排名更新执行
     async fn execute_hourly_ranking_update(&self) -> Result<()> {
